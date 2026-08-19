@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -10,32 +10,73 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 import { TOOL_DEFINITIONS } from "../src/schemas.js";
 import {
+  MAX_ERROR_EVIDENCE_CHARS,
+  TESTED_CORE_REVISION,
+  TESTED_CORE_VERSION,
   coreStatus,
+  latestDiff as coreLatestDiff,
+  latestDiffInvocation,
   modelInventory,
+  modelInventoryInvocation,
   parseCoreJson,
-  scanHistory,
+  runCore,
   scanSummary,
+  scanSummaryInvocation,
+  validateCoreArgv,
   validateKnownArguments,
   validateReadOnlyArguments,
 } from "../src/core.js";
 import {
+  DIFF_CHANGE_LIMIT,
+  MCP_TEXT_LIMIT,
+  MODEL_ASSET_LIMIT,
+  SCAN_FINDING_LIMIT,
+  contentFor,
   coreStatus as coreStatusTool,
-  scanHistory as scanHistoryTool,
+  projectLatestDiff,
+  projectModelInventory,
+  projectScanReport,
 } from "../src/tools.js";
 
-test("tool schemas expose only the I0 read-only surface", () => {
-  assert.deepEqual(
-    TOOL_DEFINITIONS.map((tool) => tool.name),
-    ["core_status", "scan_summary", "ai_model_inventory", "scan_history"],
-  );
+const toolNames = () => TOOL_DEFINITIONS.map((tool) => tool.name);
+
+async function fakeCoreScript(body) {
+  const dir = await mkdtemp(join(tmpdir(), "aidisk-fake-core-"));
+  const script = join(dir, "fake-core.mjs");
+  await writeFile(script, body);
+  return script;
+}
+
+function scanFixture() {
+  return { scan_time: "now", volumes: [], findings: [], summary: { top_findings: [] } };
+}
+
+function inventoryFixture() {
+  return { schema_version: 1, generated_at: "now", roots: [], assets: [], summary: {} };
+}
+
+function diffFixture() {
+  return { generated_at: "now", before: "a", after: "b", summary: {}, changes: [] };
+}
+
+test("tool registry exposes only the hardened I0.1 non-destructive surface", () => {
+  assert.deepEqual(toolNames(), ["core_status", "scan_summary", "ai_model_inventory", "latest_diff"]);
   for (const tool of TOOL_DEFINITIONS) {
     assert.equal(tool.annotations.destructiveHint, false);
-    assert.ok(tool.inputSchema);
+    assert.doesNotMatch(tool.name, /clean|delete|quarantine|restore|shell/);
   }
-  assert.equal(
-    TOOL_DEFINITIONS.find((tool) => tool.name === "scan_summary").annotations.readOnlyHint,
-    false,
-  );
+  assert.equal(TOOL_DEFINITIONS.find((tool) => tool.name === "scan_summary").annotations.readOnlyHint, false);
+});
+
+test("model-facing schemas remove arbitrary path and configuration inputs", () => {
+  const byName = new Map(TOOL_DEFINITIONS.map((tool) => [tool.name, tool]));
+  assert.deepEqual(Object.keys(byName.get("scan_summary").inputSchema.properties), ["category"]);
+  assert.deepEqual(Object.keys(byName.get("ai_model_inventory").inputSchema.properties), ["tool"]);
+  assert.deepEqual(Object.keys(byName.get("latest_diff").inputSchema.properties), []);
+  const serializedInputs = JSON.stringify(TOOL_DEFINITIONS.map((tool) => tool.inputSchema));
+  for (const forbidden of ["rules_dir", "policy", "rules_repo", "reports_dir", "root", "max_depth", "stale_after_days"]) {
+    assert.equal(serializedInputs.includes(forbidden), false, `${forbidden} must not be model-facing`);
+  }
 });
 
 test("tool input and output schemas compile and validate structured output", async () => {
@@ -46,52 +87,221 @@ test("tool input and output schemas compile and validate structured output", asy
   }
   const statusSchema = ajv.compile(TOOL_DEFINITIONS[0].outputSchema);
   assert.equal(statusSchema(await coreStatusTool()), true, ajv.errorsText(statusSchema.errors));
-  const historySchema = ajv.compile(TOOL_DEFINITIONS[3].outputSchema);
-  assert.equal(historySchema(await scanHistoryTool({})), true, ajv.errorsText(historySchema.errors));
-});
-
-test("mutation-shaped arguments are rejected before Core launch", () => {
-  assert.throws(() => validateReadOnlyArguments({ yes: true }), /read-only/);
-  assert.throws(() => validateReadOnlyArguments({ quarantine_root: "x" }), /read-only/);
-  assert.throws(() => validateReadOnlyArguments({ arbitrary_shell: "dir" }), /read-only/);
-});
-
-test("unknown arguments are rejected by individual tool boundaries", () => {
-  assert.throws(() => validateKnownArguments({ unexpected: true }, []), /not supported/);
-  assert.throws(() => scanHistory({ root: "x" }), /not supported/);
-  assert.throws(() => scanSummary({ shell: "dir" }), /not supported/);
-});
-
-test("malformed Core JSON produces structured diagnostics", () => {
-  assert.throws(
-    () => parseCoreJson("not-json", { args: ["scan", "--json"] }),
-    (error) => error.name === "CoreError" && error.details.stdout === "not-json",
+  const latestDiffSchema = ajv.compile(TOOL_DEFINITIONS[3].outputSchema);
+  assert.equal(
+    latestDiffSchema(projectLatestDiff({ report: diffFixture(), argv: ["diff", "--latest", "--json"] })),
+    true,
+    ajv.errorsText(latestDiffSchema.errors),
   );
 });
 
-test("history reads metadata without requiring Core", async () => {
-  const reportsDir = await mkdtemp(join(tmpdir(), "aidisk-history-"));
-  await writeFile(join(reportsDir, "scan-20260819-000000-000.json"), "{}");
-  await writeFile(join(reportsDir, "scan-20260819-000001-000.json"), "{}");
-  const result = scanHistory({ reports_dir: reportsDir });
-  assert.equal(result.snapshots.length, 2);
-  assert.equal(result.latest_pair.after.file_name, "scan-20260819-000001-000.json");
-});
-
-test("missing Core returns structured status", async () => {
+test("missing Core status is unavailable and reports non-destructive diagnostic mode", async () => {
   const previous = process.env.AIDISK_EXE;
   process.env.AIDISK_EXE = "definitely-not-aidisk-executable";
   try {
     const result = await coreStatus();
     assert.equal(result.ok, false);
-    assert.equal(result.core.status, "unavailable");
+    assert.equal(result.server.mode, "non-destructive-diagnostic");
+    assert.equal(result.core.compatibility_status, "unavailable");
   } finally {
     if (previous === undefined) delete process.env.AIDISK_EXE;
     else process.env.AIDISK_EXE = previous;
   }
 });
 
-test("MCP stdio smoke lists tools and returns Core status", async () => {
+test("input narrowing rejects forbidden filesystem and mutation argument names", () => {
+  for (const key of ["yes", "delete", "cleanup", "clean", "quarantine", "restore", "shell", "arbitrary_shell"]) {
+    assert.throws(() => validateReadOnlyArguments({ [key]: true }), /non-destructive diagnostic/);
+  }
+  assert.throws(() => validateReadOnlyArguments({ "--yes": true }), /non-destructive diagnostic/);
+  assert.throws(() => validateCoreArgv(["clean", "--dry-run", "--json"]), /allowlist/);
+  assert.throws(() => validateKnownArguments({ unexpected: true }, []), /not supported/);
+  for (const key of ["rules_dir", "policy", "root", "reports_dir", "command", "shell", "delete", "cleanup", "quarantine", "restore"]) {
+    assert.throws(() => scanSummary({ [key]: "x" }), /not supported|non-destructive diagnostic/);
+    assert.throws(() => modelInventory({ [key]: "x" }), /not supported|non-destructive diagnostic/);
+  }
+});
+
+test("argv validation does not reject allowed values containing mutation words", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) !== JSON.stringify(['scan','--json','--category','cleanup-cache'])) process.exit(2);
+console.log(JSON.stringify({ scan_time:'now', volumes:[], findings:[], summary:{ top_findings: [] } }));
+`);
+  const result = await scanSummary({ category: "cleanup-cache" }, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.scan_time, "now");
+});
+
+test("fixed Core invocations do not accept arbitrary paths or commands", async () => {
+  const calls = join(await mkdtemp(join(tmpdir(), "aidisk-calls-")), "calls.jsonl");
+  const script = await fakeCoreScript(`
+import { appendFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+appendFileSync(${JSON.stringify(calls)}, JSON.stringify(args) + '\\n');
+if (args[0] === 'scan') console.log(JSON.stringify(${JSON.stringify(scanFixture())}));
+else if (args[0] === 'models') console.log(JSON.stringify(${JSON.stringify(inventoryFixture())}));
+else if (args[0] === 'diff') console.log(JSON.stringify(${JSON.stringify(diffFixture())}));
+else console.log('help');
+`);
+  await scanSummary({ category: "ai-agent" }, { command: process.execPath, prefixArgs: [script] });
+  await modelInventory({ tool: "ollama" }, { command: process.execPath, prefixArgs: [script] });
+  await coreLatestDiff({ command: process.execPath, prefixArgs: [script] });
+  const recorded = (await import("node:fs/promises")).readFile(calls, "utf8");
+  assert.deepEqual(
+    (await recorded).trim().split("\n").map((line) => JSON.parse(line)),
+    [
+      ["scan", "--json", "--category", "ai-agent"],
+      ["models", "inventory", "--json", "--tool", "ollama"],
+      ["diff", "--latest", "--json"],
+    ],
+  );
+});
+
+test("provenance.command is the exact argv executed by the Core invocation", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (args[0] === 'scan') console.log(JSON.stringify(${JSON.stringify(scanFixture())}));
+else if (args[0] === 'models') console.log(JSON.stringify(${JSON.stringify(inventoryFixture())}));
+else if (args[0] === 'diff') console.log(JSON.stringify(${JSON.stringify(diffFixture())}));
+else console.log('help');
+`);
+  const options = { command: process.execPath, prefixArgs: [script] };
+
+  const scanDefault = projectScanReport(await scanSummaryInvocation({}, options));
+  assert.deepEqual(scanDefault.provenance.command, ["scan", "--json"]);
+
+  const scanCategory = projectScanReport(await scanSummaryInvocation({ category: "ai-agent" }, options));
+  assert.deepEqual(scanCategory.provenance.command, ["scan", "--json", "--category", "ai-agent"]);
+
+  const inventoryDefault = projectModelInventory(await modelInventoryInvocation({}, options));
+  assert.deepEqual(inventoryDefault.provenance.command, ["models", "inventory", "--json"]);
+
+  const inventoryTool = projectModelInventory(await modelInventoryInvocation({ tool: "ollama" }, options));
+  assert.deepEqual(inventoryTool.provenance.command, ["models", "inventory", "--json", "--tool", "ollama"]);
+
+  const diff = projectLatestDiff(await latestDiffInvocation(options));
+  assert.deepEqual(diff.provenance.command, ["diff", "--latest", "--json"]);
+});
+
+test("mutation-like substrings in a legal category value do not trigger argv false positives", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) !== JSON.stringify(['scan','--json','--category','cleanup-cache'])) process.exit(2);
+console.log(JSON.stringify(${JSON.stringify(scanFixture())}));
+`);
+  const invocation = await scanSummaryInvocation(
+    { category: "cleanup-cache" },
+    { command: process.execPath, prefixArgs: [script] },
+  );
+  assert.deepEqual(invocation.argv, ["scan", "--json", "--category", "cleanup-cache"]);
+  assert.deepEqual(projectScanReport(invocation).provenance.command, invocation.argv);
+});
+
+test("latest_diff uses Core diff --latest and performs no pair calculation", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) !== JSON.stringify(['diff','--latest','--json'])) process.exit(2);
+console.log(JSON.stringify({ generated_at:'now', before:'core-before.json', after:'core-after.json', summary:{ grew:1 }, changes:[{ path:'x', delta_bytes:1 }] }));
+`);
+  const result = projectLatestDiff(await latestDiffInvocation({ command: process.execPath, prefixArgs: [script] }));
+  assert.equal(result.before, "core-before.json");
+  assert.equal(result.after, "core-after.json");
+  assert.equal(result.returned_changes, 1);
+});
+
+test("latest_diff surfaces Core insufficient-history errors without Integration fallback", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) !== JSON.stringify(['diff','--latest','--json'])) process.exit(2);
+console.error(JSON.stringify({ ok:false, error:{ message:'diff --latest requires at least two scan snapshots' } }));
+process.exit(1);
+`);
+  await assert.rejects(
+    () => coreLatestDiff({ command: process.execPath, prefixArgs: [script] }),
+    (error) => {
+      assert.equal(error.name, "CoreError");
+      assert.match(error.details.stderr, /at least two scan snapshots/);
+      return true;
+    },
+  );
+});
+
+test("bounded scan projection preserves Core fields without full report echo", () => {
+  const findings = Array.from({ length: SCAN_FINDING_LIMIT + 5 }, (_, index) => ({
+    id: `rule-${index}`,
+    name: `Rule ${index}`,
+    category: "ai-agent",
+    path: `/tmp/path-${index}`,
+    exists: true,
+    size_bytes: index,
+    partial: false,
+    partial_reasons: [],
+    risk: "review",
+    action: "report-only",
+    reason: "core reason",
+    warnings: [],
+  }));
+  const report = {
+    scan_time: "now",
+    policy: { planner: {} },
+    volumes: [{ mount_point: "/", total_bytes: 1, available_bytes: 1 }],
+    findings,
+    summary: {
+      schema_version: 2,
+      total_size_bytes: 123,
+      top_findings: findings.map(({ id, path, risk, size_bytes, partial }) => ({ id, path, risk, size_bytes, partial })),
+    },
+  };
+  const result = projectScanReport({ report, argv: ["scan", "--json"] });
+  assert.equal(result.returned_findings, SCAN_FINDING_LIMIT);
+  assert.equal(result.total_findings, findings.length);
+  assert.equal(result.truncated, true);
+  assert.equal(result.top_findings[0].finding.reason, "core reason");
+  assert.equal(contentFor(result)[0].text.length <= MCP_TEXT_LIMIT, true);
+});
+
+test("bounded model inventory projection preserves Core asset semantics", () => {
+  const assets = Array.from({ length: MODEL_ASSET_LIMIT + 2 }, (_, index) => ({
+    id: `asset-${index}`,
+    logical_name: `model-${index}`,
+    action: "report-only",
+    reclaim_confidence: 0,
+  }));
+  const report = { schema_version: 1, generated_at: "now", roots: [], assets, summary: { total_assets: assets.length } };
+  const result = projectModelInventory({ report, argv: ["models", "inventory", "--json"] });
+  assert.equal(result.returned_assets, MODEL_ASSET_LIMIT);
+  assert.equal(result.total_assets, assets.length);
+  assert.equal(result.truncated, true);
+  assert.equal(result.assets[0].action, "report-only");
+});
+
+test("bounded latest diff projection limits Core changes", () => {
+  const changes = Array.from({ length: DIFF_CHANGE_LIMIT + 1 }, (_, index) => ({ path: `p${index}`, delta_bytes: index }));
+  const report = { generated_at: "now", before: "b", after: "a", summary: {}, changes };
+  const result = projectLatestDiff({ report, argv: ["diff", "--latest", "--json"] });
+  assert.equal(result.returned_changes, DIFF_CHANGE_LIMIT);
+  assert.equal(result.total_changes, changes.length);
+  assert.equal(result.truncated, true);
+});
+
+test("malformed Core JSON and output flooding return bounded diagnostics", async () => {
+  assert.throws(
+    () => parseCoreJson("not-json", { args: ["scan", "--json"] }),
+    (error) => error.name === "CoreError" && error.details.stdout === "not-json",
+  );
+  const script = await fakeCoreScript("process.stdout.write('x'.repeat(5 * 1024 * 1024));");
+  await assert.rejects(
+    () => runCore(["scan", "--json"], { command: process.execPath, prefixArgs: [script] }),
+    (error) => {
+      assert.equal(error.name, "CoreError");
+      assert.equal(error.details.truncated, true);
+      assert.equal(error.details.stdout.length <= MAX_ERROR_EVIDENCE_CHARS, true);
+      return true;
+    },
+  );
+});
+
+test("MCP stdio smoke lists hardened tools and rejects invalid inputs", async () => {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [join(process.cwd(), "src", "server.js")],
@@ -102,17 +312,14 @@ test("MCP stdio smoke lists tools and returns Core status", async () => {
   const client = new Client({ name: "integration-test", version: "0.1.0" });
   await client.connect(transport);
   const listed = await client.listTools();
-  assert.deepEqual(
-    listed.tools.map((tool) => tool.name),
-    ["core_status", "scan_summary", "ai_model_inventory", "scan_history"],
-  );
+  assert.deepEqual(listed.tools.map((tool) => tool.name), toolNames());
   const status = await client.callTool({ name: "core_status", arguments: {} });
   assert.equal(status.isError, undefined);
-  assert.equal(JSON.parse(status.content[0].text).server.mode, "read-only");
-  const rejected = await client.callTool({ name: "scan_history", arguments: { shell: "dir" } });
+  assert.equal(status.structuredContent.server.mode, "non-destructive-diagnostic");
+  const rejected = await client.callTool({ name: "scan_summary", arguments: { rules_dir: "x" } });
   assert.equal(rejected.isError, true);
   assert.equal(rejected.structuredContent, undefined);
-  const invalid = await client.callTool({ name: "ai_model_inventory", arguments: { max_depth: -1 } });
+  const invalid = await client.callTool({ name: "ai_model_inventory", arguments: { root: "x" } });
   assert.equal(invalid.isError, true);
   await client.close();
 });
@@ -123,7 +330,21 @@ test("actual Core status and inventory smoke when AIDISK_EXE is supplied", async
     return;
   }
   const status = await coreStatus();
-  assert.equal(status.ok, true);
-  const inventory = await modelInventory({ root: join(tmpdir(), "missing-ai-disk-root") });
+  assert.equal(status.core.tested_revision, TESTED_CORE_REVISION);
+  assert.equal(status.core.expected_version, TESTED_CORE_VERSION);
+  assert.notEqual(status.core.compatibility_status, "unavailable");
+  const inventory = await modelInventory({ tool: "generic" });
   assert.equal(typeof inventory.summary.total_assets, "number");
+});
+
+test("current Node CLI scan may create a Core-owned snapshot", async (t) => {
+  if (!process.env.AIDISK_EXE) {
+    t.skip("set AIDISK_EXE to run the real Core scan side-effect smoke");
+    return;
+  }
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-scan-side-effect-"));
+  await mkdir(join(workspace, ".aidisk"), { recursive: true });
+  await scanSummary({ category: "definitely-no-category" }, { cwd: workspace });
+  const reports = await readdir(join(workspace, ".aidisk", "reports"));
+  assert.equal(reports.some((name) => name.startsWith("scan-") && name.endsWith(".json")), true);
 });

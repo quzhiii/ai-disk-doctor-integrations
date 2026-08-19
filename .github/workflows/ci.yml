@@ -2,18 +2,67 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [master]
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  node:
+    name: node-${{ matrix.node-version }}-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        node-version: [18]
+        include:
+          - os: ubuntu-latest
+            node-version: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - run: npm audit --audit-level=moderate
+      - run: git diff --check
+
+  rust-spike:
+    name: rust-spike-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fmt --manifest-path spikes/rust-direct-core/Cargo.toml -- --check
+      - run: cargo run --manifest-path spikes/rust-direct-core/Cargo.toml
+
+  pinned-core-smoke:
+    name: pinned-core-aidisk-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Integration
+        uses: actions/checkout@v4
+      - name: Checkout tested Core baseline
+        uses: actions/checkout@v4
+        with:
+          repository: quzhiii/ai-disk-doctor
+          ref: 52f31509394d2165cba8908da00a1036ba90479d
+          path: pinned-core
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - name: Build tested Core binary
+        run: cargo build --manifest-path pinned-core/aidisk/Cargo.toml --bin aidisk
+      - name: Real AIDISK_EXE smoke against tested Core baseline
+        env:
+          AIDISK_EXE: ${{ github.workspace }}/pinned-core/aidisk/target/debug/aidisk
+        run: npm test

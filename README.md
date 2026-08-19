@@ -1,29 +1,35 @@
 # AI Disk Doctor Integrations
 
-Universal local Agent Skill and read-only MCP server for [AI Disk Doctor Core](https://github.com/quzhiii/ai-disk-doctor).
+Universal local Agent Skill and non-destructive diagnostic MCP server for [AI Disk Doctor Core](https://github.com/quzhiii/ai-disk-doctor).
 
-This repository is an integration and distribution layer. It does not implement a second scanner, cleaner, risk engine, recovery model, or policy system. The local Core remains the execution and policy source of truth.
+This repository is an integration and distribution layer. It does not implement a second scanner, cleaner, risk engine, recovery model, policy system, history engine, or explainability engine. The local Core remains the execution and policy source of truth.
 
 ## Alpha Scope
 
 The MCP server exposes four tools:
 
-| Tool | Behavior | Core side effect |
-|---|---|---|
-| `core_status` | Check Core availability and required command surface | None |
-| `scan_summary` | Run the existing `aidisk scan --json` contract | Core may save `.aidisk/reports/scan-*.json` |
-| `ai_model_inventory` | Run the existing `aidisk models inventory --json` contract | None intended |
-| `scan_history` | List local Core-owned snapshot metadata | None |
+| Tool | Behavior | Model-facing inputs | Core side effect |
+|---|---|---|---|
+| `core_status` | Check Core availability, required command surface, and compatibility provenance | None | None |
+| `scan_summary` | Run `aidisk scan --json` and return bounded Core evidence | `category?` | Current Core CLI may save `.aidisk/reports/scan-*.json` |
+| `ai_model_inventory` | Run `aidisk models inventory --json` with Core defaults and return bounded assets | `tool?` | None intended |
+| `latest_diff` | Run Core-owned `aidisk diff --latest --json` and return bounded changes | None | None |
 
-I0 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, or arbitrary filesystem mutation tool. `explain_storage` is intentionally not included until the merged M1C Explainability Contract is available in the public Core.
+I0.1 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, arbitrary filesystem mutation tool, or explainability MCP tool.
+
+### Core state used by I0.1
+
+- Tested Core baseline: v1.7.0 at `52f31509394d2165cba8908da00a1036ba90479d`.
+- Latest merged Public Core reviewed during I0.1: `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, which merged M1C `explainability-v1`.
+- M1C is **not consumed by I0.1**. The current explainability contract is exposed through the Rust application boundary, while the Core CLI has no explainability CLI contract for this integration to call.
 
 ## Install
 
 ### Prerequisites
 
 - Node.js 18 or newer.
-- AI Disk Doctor Core v1.7.0 or a compatible later Core on `PATH` as `aidisk`/`aidisk.exe`.
-- Set `AIDISK_EXE` when the Core binary is installed elsewhere.
+- AI Disk Doctor Core v1.7.0 on `PATH` as `aidisk`/`aidisk.exe`, or set `AIDISK_EXE`.
+- This integration is tested against Core revision `52f31509394d2165cba8908da00a1036ba90479d`. Runtime compatibility is checked by `core_status`; current Core binaries do not expose a runtime git revision, so the exact revision is not claimed from runtime detection.
 
 Install from a checkout:
 
@@ -34,9 +40,7 @@ npm install
 npm start
 ```
 
-For a deterministic local installation, pin the repository checkout or use a tagged release. The npm dependency is pinned to `@modelcontextprotocol/sdk` `1.30.0` in `package-lock.json`.
-
-The process uses MCP stdio transport and should be started by an MCP client, not opened as a standalone interactive program.
+The process uses MCP stdio transport and should be started by an MCP client. The npm dependency set is locked in `package-lock.json`.
 
 ### OpenCode
 
@@ -50,25 +54,20 @@ OpenCode supports project-local MCP declarations in `opencode.json` or `opencode
       "type": "local",
       "command": ["node", "C:/absolute/path/to/ai-disk-doctor-integrations/src/server.js"],
       "cwd": "C:/absolute/path/to/your-workspace",
+      "environment": { "AIDISK_EXE": "aidisk" },
       "enabled": true
     }
   }
 }
 ```
 
-For a global install, use absolute paths for `command` arguments and set `AIDISK_EXE` in `environment` if needed. Set `cwd` to the user workspace where Core snapshots should be stored, rather than the integration checkout. Then use `opencode mcp list` or ask the agent to check `core_status`. The checked-in example is under `adapters/opencode/opencode.jsonc`.
+Set `cwd` to the user workspace where Core snapshots should be stored, rather than the integration checkout. Then use `opencode mcp list` or ask the agent to check `core_status`. The checked-in example is under `adapters/opencode/opencode.jsonc`.
 
 OpenCode Agent Skills are discovered from `.opencode/skills`, `.claude/skills`, or `.agents/skills`. Copy or symlink `skills/ai-disk-doctor` into one of those locations for a project or user installation.
 
 ### Qwen Code
 
-Qwen Code supports local stdio MCP servers through `qwen mcp` or `settings.json`:
-
-```bash
-qwen mcp add --scope user --transport stdio ai-disk-doctor node ./src/server.js
-```
-
-Equivalent `.qwen/settings.json` entry:
+Qwen Code supports local stdio MCP servers and extensions in current official documentation. Equivalent `.qwen/settings.json` entry:
 
 ```json
 {
@@ -84,45 +83,28 @@ Equivalent `.qwen/settings.json` entry:
 }
 ```
 
-The repository root is a Qwen extension package through its `qwen-extension.json`. Install the repository as a local extension after `npm install`; see `adapters/qwen/README.md`. The canonical Skill remains the same Skill, not a Qwen-specific governance implementation.
+The repository root is a Qwen extension package through `qwen-extension.json`; see `adapters/qwen/README.md`. The locally installed Qwen CLI in this environment was too old to expose documented MCP/extension subcommands, so client smoke is not claimed.
 
 ### CodeBuddy / WorkBuddy
 
-Use the local MCP configuration surface supported by the installed product and point it at the same `node ./src/server.js` stdio process. Set its working directory to the workspace where Core snapshot history should live. No Expert persona or vendor-specific risk logic is included. Exact packaging is deferred until an official, locally testable CodeBuddy / WorkBuddy client contract is available; see `adapters/codebuddy/README.md`.
+Exact packaging is deferred until an official, locally testable CodeBuddy / WorkBuddy client contract is available; see `adapters/codebuddy/README.md`. No Expert persona or vendor-specific risk logic is included.
 
 ### TRAE
 
-Use TRAE’s documented project MCP configuration and add the same local stdio process. Set its working directory to the workspace where Core snapshot history should live. Exact project packaging is deferred until a TRAE client is locally available for validation; see `adapters/trae/README.md`.
-
-## Core Diagnostics
-
-```bash
-# Verify the Core directly
-aidisk --help
-
-# Verify the integration server syntax
-npm run check
-
-# Override the Core executable
-# Windows PowerShell:
-$env:AIDISK_EXE = 'C:\\Tools\\aidisk.exe'
-# POSIX shells:
-export AIDISK_EXE=/opt/aidisk
-```
-
-If Core is missing or returns malformed/incompatible output, `core_status` reports a structured failure. The MCP process does not download Core, clone repositories, contact a cloud service, or silently substitute another scanner.
+TRAE MCP and Skill docs exist, but exact project packaging is deferred until a TRAE client is locally available for validation; see `adapters/trae/README.md`.
 
 ## Safety Boundary
 
 - MCP transport is local stdio only.
-- The server starts only the configured `aidisk` executable with fixed read-oriented subcommands.
-- No arbitrary shell or arbitrary command tool exists.
-- No cleanup, quarantine execution, restore, deletion, or mutation tool exists.
-- `scan_summary` is marked `readOnlyHint: false` because current Core scan persistence can write an AI Disk Doctor-owned snapshot. It is still `destructiveHint: false` and does not modify user/workspace files.
-- Model inventory is metadata-only according to the Core contract; this integration does not read prompt, transcript, source, document, token, cookie, or credential contents.
-- Paths supplied to tools are passed only to the corresponding Core command or history metadata reader. They are not recursively read by this integration.
+- `core_status.server.mode` is `non-destructive-diagnostic`: the server exposes no destructive action, but `scan_summary` can cause Core-owned snapshot persistence.
+- The server starts only the configured `aidisk` executable with fixed allowlisted argv.
+- Model-facing inputs are limited to `scan_summary.category` and `ai_model_inventory.tool`.
+- No model-facing rules, policy, root, reports directory, executable, shell, cleanup, quarantine, restore, or delete parameter exists.
+- `scan_summary` is non-destructive but `readOnlyHint: false` because current Core CLI scan persists a Core-owned snapshot. It is `destructiveHint: false` and does not modify user/workspace files.
+- Output is bounded: scan findings, model assets, diff changes, Core stdout/stderr capture, error evidence, and MCP text content all have hard limits.
+- Model inventory is metadata-only according to the Core contract; this integration does not read prompt, transcript, source, document, token, cookie, credential, or model binary contents.
 
-Agents must never bypass these rules by deleting paths with shell commands. If a future mutation flow is approved, it must use a separate authorization surface.
+Agents must never bypass these rules by deleting paths with shell commands. If a future mutation flow is approved, it must use a separate Desktop-mediated authorization surface.
 
 ## Development
 
@@ -130,9 +112,13 @@ Agents must never bypass these rules by deleting paths with shell commands. If a
 npm install
 npm run check
 npm test
+npm audit --audit-level=moderate
+git diff --check
+cargo fmt --manifest-path spikes/rust-direct-core/Cargo.toml -- --check
+cargo run --manifest-path spikes/rust-direct-core/Cargo.toml
 ```
 
-For a real Core smoke, install/build the pinned Core revision, put `aidisk` on `PATH` or set `AIDISK_EXE`, and run `npm test`. The real-Core test is skipped when `AIDISK_EXE` is not set. The remaining protocol tests use temporary directories and a missing-Core case; they do not pretend that vendor clients are installed.
+For a real Core smoke, install/build the pinned Core revision `52f31509394d2165cba8908da00a1036ba90479d`, set `AIDISK_EXE` to that binary, and run `npm test`. CI includes a pinned-Core `AIDISK_EXE` smoke in addition to protocol-only Node tests and the Rust direct-Core spike.
 
 ## License
 
@@ -140,4 +126,4 @@ The integration source is dual-licensed under MIT or Apache-2.0. See [`LICENSE-M
 
 ## Status
 
-I0 Alpha. This repository is not the commercial Desktop and contains no accounts, billing, entitlements, telemetry, cloud synchronization, or proprietary Desktop code.
+I0.1 Alpha. This repository is not the commercial Desktop and contains no accounts, billing, entitlements, telemetry, cloud synchronization, or proprietary Desktop code.

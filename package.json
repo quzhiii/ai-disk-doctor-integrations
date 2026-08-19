@@ -1,7 +1,7 @@
 {
   "name": "@quzhiii/ai-disk-doctor-integrations",
-  "version": "0.1.0-alpha.1",
-  "description": "Universal local Agent Skill and read-only MCP server for AI Disk Doctor",
+  "version": "0.1.0-alpha.2",
+  "description": "Universal local Agent Skill and non-destructive diagnostic MCP server for AI Disk Doctor",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "engines": {

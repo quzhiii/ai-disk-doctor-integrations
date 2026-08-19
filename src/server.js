@@ -4,8 +4,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
   aiModelInventory,
+  contentFor,
   coreStatus,
-  scanHistory,
+  latestDiff,
   scanSummary,
 } from "./tools.js";
 import { TOOL_DEFINITIONS } from "./schemas.js";
@@ -35,7 +36,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     core_status: coreStatus,
     scan_summary: scanSummary,
     ai_model_inventory: aiModelInventory,
-    scan_history: scanHistory,
+    latest_diff: latestDiff,
   };
   if (!handlers[name] || !toolsByName.has(name)) {
     throw new Error(`Unknown tool: ${name}`);
@@ -50,8 +51,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!validateOutput(value)) {
       throw new Error(`invalid ${name} output: ${ajv.errorsText(validateOutput.errors)}`);
     }
-    const text = JSON.stringify(value, null, 2);
-    return { content: [{ type: "text", text }], structuredContent: value };
+    return { content: contentFor(value), structuredContent: value };
   } catch (error) {
     const value = {
       ok: false,
@@ -63,7 +63,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
     return {
       isError: true,
-      content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+      content: [{ type: "text", text: `ok=false\nerror=${value.error.message}`.slice(0, 2_000) }],
     };
   }
 });
