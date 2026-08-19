@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "ai-disk-doctor": {
+      "type": "local",
+      "command": ["node", "C:/absolute/path/to/ai-disk-doctor-integrations/src/server.js"],
+      "cwd": "C:/absolute/path/to/your-workspace",
+      "environment": {
+        "AIDISK_EXE": "aidisk"
+      },
+      "enabled": true
+    }
+  }
+}

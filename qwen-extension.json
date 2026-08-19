@@ -1,0 +1,14 @@
+{
+  "name": "ai-disk-doctor",
+  "version": "0.1.0-alpha.1",
+  "contextFileName": "QWEN.md",
+  "skills": "skills",
+  "mcpServers": {
+    "ai-disk-doctor": {
+      "command": "node",
+      "args": ["${extensionPath}${/}src${/}server.js"],
+      "cwd": "${workspacePath}",
+      "timeout": 120000
+    }
+  }
+}

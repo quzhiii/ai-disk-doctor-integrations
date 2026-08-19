@@ -1,0 +1,63 @@
+---
+name: ai-disk-doctor
+description: Diagnose AI and developer workspace storage with AI Disk Doctor's local Core. Use when asking why a disk is full, which AI tools or model caches consume space, what changed recently, what evidence supports a classification, or what should be reviewed safely.
+license: MIT OR Apache-2.0
+compatibility: Local AI Disk Doctor Core v1.7.0+ and an MCP-compatible Agent client. Read-only alpha; scan may persist a Core-owned snapshot.
+metadata:
+  integration: ai-disk-doctor-integrations
+  safety: read-only-alpha
+---
+
+# AI Disk Doctor
+
+Use the AI Disk Doctor MCP tools as the workspace storage governance layer. The local AI Disk Doctor Core is the only source of truth for scanning, model inventory, history, rules, policy, risk, and future cleanup planning.
+
+## When To Use
+
+Use this Skill for questions such as:
+
+- Why is my disk suddenly full?
+- Which AI tools, IDEs, or model caches are consuming storage?
+- What did Claude, OpenCode, Cursor, Ollama, or other tools leave locally?
+- What changed since the previous scan?
+- Which findings need review, and what evidence supports that classification?
+
+## I0 Workflow
+
+1. Call `core_status` first when the Core may be missing or the environment is unfamiliar.
+2. Call `scan_summary` for current storage evidence. Use an existing category filter only when the user asks for a focused area.
+3. Call `ai_model_inventory` for model and cache questions. Treat unknown, incomplete, custom, shared, or credential-adjacent assets conservatively.
+4. Call `scan_history` when the user asks what changed recently. Explain that I0 returns snapshot metadata, not a new growth inference.
+5. Explain findings with evidence from the Core response: path, existence, size, rule/category, risk, action, partial reasons, and uncertainty fields when present.
+
+## Safety Rules
+
+- Never delete, move, quarantine, restore, or rewrite files with shell commands to work around this Skill.
+- I0 exposes no destructive MCP tool. Do not invent one.
+- Do not classify unknown, active, partial, sensitive, source, prompt, credential, or recovery data as safe to remove.
+- A report-only or review finding is not an authorization to mutate it.
+- Say clearly that `scan_summary` may create an AI Disk Doctor-owned snapshot under `.aidisk/reports`; it does not modify user/workspace files.
+- Do not read file contents merely to classify storage. Use Core metadata and rule evidence.
+- If the Core is missing or incompatible, report that fact and stop at diagnostics. Do not substitute a generic cleaner or shell scan.
+
+## Response Shape
+
+Lead with the largest supported conclusion, then provide:
+
+- evidence and the Core schema/version source
+- risk and uncertainty
+- items requiring review or explicitly blocked
+- the smallest safe next diagnostic step
+
+Do not promise reclaimable space unless the Core explicitly reports an estimate. Reclaim confidence is not the same as recovery value.
+
+## Deferred Capability
+
+Do not implement or infer `explain_storage` in the Skill. Add it only after the public Core publishes the merged M1C Explainability Contract and this repository pins and tests that contract.
+
+For the safety model, tool semantics, examples, and compatibility details, load the linked references only when needed:
+
+- [Safety model](references/safety-model.md)
+- [Tool semantics](references/tool-semantics.md)
+- [Examples](references/examples.md)
+- [Platform compatibility](references/platform-compatibility.md)
