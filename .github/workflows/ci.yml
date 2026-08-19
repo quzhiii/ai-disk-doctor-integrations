@@ -61,8 +61,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       - name: Build tested Core binary
-        run: cargo build --manifest-path pinned-core/Cargo.toml --bin aidisk
+        run: cargo build --manifest-path pinned-core/aidisk/Cargo.toml --bin aidisk
       - name: Real AIDISK_EXE smoke against tested Core baseline
         env:
-          AIDISK_EXE: ${{ github.workspace }}/pinned-core/target/debug/aidisk
+          AIDISK_EXE: ${{ github.workspace }}/pinned-core/aidisk/target/debug/aidisk
         run: npm test
