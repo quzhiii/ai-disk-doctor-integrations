@@ -4,6 +4,13 @@ Last audited: 2026-08-19
 
 Sources are linked to official vendor documentation. Availability is based on the local machine, not inference.
 
+## Core compatibility state
+
+- Tested baseline: AI Disk Doctor Core v1.7.0 at `52f31509394d2165cba8908da00a1036ba90479d`.
+- Latest merged Public Core reviewed during I0.1: `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7` (M1C `explainability-v1` merged).
+- I0.1 does not consume M1C and exposes no explainability MCP tool. M1C currently exposes explainable scan through the Rust application boundary; the Core CLI has no explainability CLI contract.
+- Runtime compatibility is checked by `core_status`. The tested revision is provenance; current Core binaries do not prove an exact git revision at runtime.
+
 | Client | Installation method | Skill support | MCP support | Local process | Permissions | Invocation UX | Tested version/date | Evidence status |
 |---|---|---:|---:|---:|---|---|---|---|
 | OpenCode | `opencode.json(c)` local MCP; copy Skill to `.opencode/skills`, `.claude/skills`, or `.agents/skills` | Yes | Yes, local stdio | Yes | Client-controlled; do not grant shell bypass | MCP tools become available automatically; use `opencode mcp list` | OpenCode 1.16.2, 2026-08-19 | verified locally: `OPENCODE_CONFIG_CONTENT=... opencode mcp list` returned `ai-disk-doctor connected`; SDK stdio smoke also passed |

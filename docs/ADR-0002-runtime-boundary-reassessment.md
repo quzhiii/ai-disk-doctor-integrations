@@ -8,7 +8,7 @@ Date: 2026-08-19
 
 I0 shipped a Node.js stdio MCP server over fixed AI Disk Doctor Core CLI JSON contracts. I0.1 reassesses whether production should remain on the CLI boundary or migrate to a Rust MCP binary that depends on the public Core application boundary.
 
-The spike uses only merged public Core revision `52f31509394d2165cba8908da00a1036ba90479d`.
+The I0.1 spike and production compatibility baseline remain pinned to merged public Core revision `52f31509394d2165cba8908da00a1036ba90479d`. The latest merged Public Core reviewed during final I0.1 review is `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, which merged M1C `explainability-v1`. That newer Core state is not consumed by I0.1.
 
 ## Option A: Node stdio MCP over fixed Core CLI JSON
 
@@ -78,7 +78,19 @@ Distribution evidence:
 CI evidence in this branch:
 
 - `rust-spike` CI job runs the spike on Windows, macOS, and Ubuntu.
-- This proves compile/run behavior for the proof-of-concept, not marketplace packaging readiness.
+- `pinned-core-smoke` builds Core at the I0.1 tested revision and runs the real `AIDISK_EXE` Node smoke on Ubuntu.
+- This proves compile/run behavior for the proof-of-concept and pinned CLI boundary, not marketplace packaging readiness.
+
+## M1C Explainability Architecture Input
+
+Public Core M1C `explainability-v1` is merged at `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`.
+
+At that merged Core state, explainability is exposed through the Rust application boundary:
+
+- `run_explainable_scan`
+- `run_explainable_scan_with_progress`
+
+The current Core CLI does **not** expose an explainability CLI contract. I0.1 therefore does not add `explain_storage` or any other explainability MCP tool and remains tested against `52f31509394d2165cba8908da00a1036ba90479d`. The merged application-boundary capability is architecture input for the next milestone: that milestone must explicitly choose and test a supported consumption boundary instead of projecting an unversioned Integration-side contract.
 
 ## Comparison
 
@@ -102,6 +114,8 @@ Record Rust direct-Core as the likely long-term path if Product/Core Lane wants 
 
 - a merged Core CLI `scan --no-snapshot` or equivalent read-only contract, or
 - a stable Core application package plus asset-resolution helper suitable for integration binaries.
+
+The merged M1C explainability application boundary should be evaluated in that future boundary decision, but it is not consumed in PR #1.
 
 ## Unresolved Contract Gap
 

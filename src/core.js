@@ -87,7 +87,7 @@ export function validateReadOnlyArguments(args = {}) {
       normalized.includes("quarantine") ||
       normalized.includes("restore")
     ) {
-      throw new CoreError(`argument '${key}' is not available in the read-only integration`);
+      throw new CoreError(`argument '${key}' is not available in the non-destructive diagnostic integration`);
     }
   }
 }
@@ -152,7 +152,6 @@ function executeCore(args, {
   prefixArgs = [],
 } = {}) {
   validateCoreArgv(args);
-  validateReadOnlyArguments(Object.fromEntries(args.map((arg) => [arg, true])));
   return new Promise((resolve, reject) => {
     const child = spawn(command, [...prefixArgs, ...args], {
       cwd,
@@ -247,6 +246,12 @@ export function runCoreText(args, options = {}) {
   return executeCore(args, options).then(({ stdout }) => stdout);
 }
 
+async function runCoreInvocation(args, options = {}) {
+  const argv = [...args];
+  const report = await runCore(argv, options);
+  return { report, argv };
+}
+
 export function parseCoreJson(stdout, { args = [], stderr = "", captures = {} } = {}) {
   try {
     return JSON.parse(stdout.replace(/^\uFEFF/, ""));
@@ -281,7 +286,7 @@ export async function coreStatus() {
       name: "ai-disk-doctor",
       version: SERVER_VERSION,
       transport: "stdio",
-      mode: "read-only",
+      mode: "non-destructive-diagnostic",
     },
     core,
   };
@@ -343,11 +348,7 @@ function coreArgsForScan(args) {
   return result;
 }
 
-export function scanSummary(args = {}, options = {}) {
-  return runCore(coreArgsForScan(args), options);
-}
-
-export function modelInventory(args = {}, options = {}) {
+function coreArgsForModelInventory(args) {
   validateKnownArguments(args, ["tool"]);
   validateReadOnlyArguments(args);
   const result = ["models", "inventory", "--json"];
@@ -357,9 +358,33 @@ export function modelInventory(args = {}, options = {}) {
     }
     result.push("--tool", args.tool);
   }
-  return runCore(result, options);
+  return result;
+}
+
+function coreArgsForLatestDiff() {
+  return ["diff", "--latest", "--json"];
+}
+
+export function scanSummaryInvocation(args = {}, options = {}) {
+  return runCoreInvocation(coreArgsForScan(args), options);
+}
+
+export function scanSummary(args = {}, options = {}) {
+  return scanSummaryInvocation(args, options).then(({ report }) => report);
+}
+
+export function modelInventoryInvocation(args = {}, options = {}) {
+  return runCoreInvocation(coreArgsForModelInventory(args), options);
+}
+
+export function modelInventory(args = {}, options = {}) {
+  return modelInventoryInvocation(args, options).then(({ report }) => report);
+}
+
+export function latestDiffInvocation(options = {}) {
+  return runCoreInvocation(coreArgsForLatestDiff(), options);
 }
 
 export function latestDiff(options = {}) {
-  return runCore(["diff", "--latest", "--json"], options);
+  return latestDiffInvocation(options).then(({ report }) => report);
 }

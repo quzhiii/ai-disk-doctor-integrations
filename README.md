@@ -2,7 +2,7 @@
 
 Universal local Agent Skill and non-destructive diagnostic MCP server for [AI Disk Doctor Core](https://github.com/quzhiii/ai-disk-doctor).
 
-This repository is an integration and distribution layer. It does not implement a second scanner, cleaner, risk engine, recovery model, policy system, or history engine. The local Core remains the execution and policy source of truth.
+This repository is an integration and distribution layer. It does not implement a second scanner, cleaner, risk engine, recovery model, policy system, history engine, or explainability engine. The local Core remains the execution and policy source of truth.
 
 ## Alpha Scope
 
@@ -15,15 +15,21 @@ The MCP server exposes four tools:
 | `ai_model_inventory` | Run `aidisk models inventory --json` with Core defaults and return bounded assets | `tool?` | None intended |
 | `latest_diff` | Run Core-owned `aidisk diff --latest --json` and return bounded changes | None | None |
 
-I0.1 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, or arbitrary filesystem mutation tool. `explain_storage` is intentionally not included until a merged public Core Explainability Contract is accepted in a later scope.
+I0.1 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, arbitrary filesystem mutation tool, or explainability MCP tool.
+
+### Core state used by I0.1
+
+- Tested Core baseline: v1.7.0 at `52f31509394d2165cba8908da00a1036ba90479d`.
+- Latest merged Public Core reviewed during I0.1: `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, which merged M1C `explainability-v1`.
+- M1C is **not consumed by I0.1**. The current explainability contract is exposed through the Rust application boundary, while the Core CLI has no explainability CLI contract for this integration to call.
 
 ## Install
 
 ### Prerequisites
 
 - Node.js 18 or newer.
-- AI Disk Doctor Core v1.7.0 baseline on `PATH` as `aidisk`/`aidisk.exe`, or set `AIDISK_EXE`.
-- The integration was tested against Core revision `52f31509394d2165cba8908da00a1036ba90479d`; current Core binaries do not expose a runtime git revision, so runtime status is `compatible-unverified` unless a future Core identity contract proves the exact revision.
+- AI Disk Doctor Core v1.7.0 on `PATH` as `aidisk`/`aidisk.exe`, or set `AIDISK_EXE`.
+- This integration is tested against Core revision `52f31509394d2165cba8908da00a1036ba90479d`. Runtime compatibility is checked by `core_status`; current Core binaries do not expose a runtime git revision, so the exact revision is not claimed from runtime detection.
 
 Install from a checkout:
 
@@ -90,6 +96,7 @@ TRAE MCP and Skill docs exist, but exact project packaging is deferred until a T
 ## Safety Boundary
 
 - MCP transport is local stdio only.
+- `core_status.server.mode` is `non-destructive-diagnostic`: the server exposes no destructive action, but `scan_summary` can cause Core-owned snapshot persistence.
 - The server starts only the configured `aidisk` executable with fixed allowlisted argv.
 - Model-facing inputs are limited to `scan_summary.category` and `ai_model_inventory.tool`.
 - No model-facing rules, policy, root, reports directory, executable, shell, cleanup, quarantine, restore, or delete parameter exists.
@@ -106,10 +113,12 @@ npm install
 npm run check
 npm test
 npm audit --audit-level=moderate
+git diff --check
+cargo fmt --manifest-path spikes/rust-direct-core/Cargo.toml -- --check
 cargo run --manifest-path spikes/rust-direct-core/Cargo.toml
 ```
 
-For a real Core smoke, install/build the pinned Core revision, put `aidisk` on `PATH` or set `AIDISK_EXE`, and run `npm test`. Real-Core tests are skipped when `AIDISK_EXE` is not set. CI runs protocol-only Node tests across Windows, macOS, and Ubuntu, plus the Rust direct-Core spike across the same OS matrix.
+For a real Core smoke, install/build the pinned Core revision `52f31509394d2165cba8908da00a1036ba90479d`, set `AIDISK_EXE` to that binary, and run `npm test`. CI includes a pinned-Core `AIDISK_EXE` smoke in addition to protocol-only Node tests and the Rust direct-Core spike.
 
 ## License
 

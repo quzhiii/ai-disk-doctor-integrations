@@ -2,7 +2,9 @@
 
 Date: 2026-08-19
 
-Public Core baseline: `52f31509394d2165cba8908da00a1036ba90479d`
+I0.1 tested Public Core baseline: `52f31509394d2165cba8908da00a1036ba90479d`
+
+Latest merged Public Core reviewed during final I0.1 review: `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7` (M1C `explainability-v1`).
 
 ## Current Public CLI Behavior
 
@@ -25,7 +27,7 @@ read-only scan
   -> no Core-owned report write
 ```
 
-The merged Core application boundary already supports `SnapshotPersistence::Skip`, and the Rust spike proves it avoids snapshot creation. The public CLI does not expose that choice at the tested revision.
+The merged Core application boundary already supports `SnapshotPersistence::Skip`, and the Rust spike proves it avoids snapshot creation. The public CLI does not expose that choice at the I0.1 tested revision.
 
 ## Possible Core/Product Lane Solution
 
@@ -41,5 +43,5 @@ The option should preserve current CLI defaults so existing history/diff behavio
 
 - Do not modify Core.
 - Do not publish a Core contract from the integration repository.
-- Do not consume unmerged Explainability or scan contract branches.
+- Do not consume M1C explainability in I0.1 merely because M1C is merged. Its current contract is on the Rust application boundary and the Core CLI has no explainability CLI contract.
 - Do not claim `readOnlyHint: true` for `scan_summary` until the production runtime demonstrably avoids Core-owned writes.
