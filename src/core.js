@@ -23,7 +23,6 @@ const mutationArguments = new Set([
   "command",
   "shell",
 ]);
-export const CORE_ARGV_METADATA = Symbol("aidiskCoreArgv");
 
 export class CoreError extends Error {
   constructor(message, details = {}) {
@@ -239,30 +238,20 @@ function executeCore(args, {
   });
 }
 
-function attachCoreArgv(value, args) {
-  if (value !== null && typeof value === "object") {
-    Object.defineProperty(value, CORE_ARGV_METADATA, {
-      value: [...args],
-      enumerable: false,
-      configurable: true,
-    });
-  }
-  return value;
-}
-
-export function coreArgvForResult(value) {
-  const args = value?.[CORE_ARGV_METADATA];
-  return Array.isArray(args) ? [...args] : [];
-}
-
 export function runCore(args, options = {}) {
   const coreArgs = [...args];
   return executeCore(coreArgs, options).then(({ stdout, stderr, captures }) =>
-    attachCoreArgv(parseCoreJson(stdout, { args: coreArgs, stderr, captures }), coreArgs));
+    parseCoreJson(stdout, { args: coreArgs, stderr, captures }));
 }
 
 export function runCoreText(args, options = {}) {
   return executeCore(args, options).then(({ stdout }) => stdout);
+}
+
+async function runCoreInvocation(args, options = {}) {
+  const argv = [...args];
+  const report = await runCore(argv, options);
+  return { report, argv };
 }
 
 export function parseCoreJson(stdout, { args = [], stderr = "", captures = {} } = {}) {
@@ -361,11 +350,7 @@ function coreArgsForScan(args) {
   return result;
 }
 
-export function scanSummary(args = {}, options = {}) {
-  return runCore(coreArgsForScan(args), options);
-}
-
-export function modelInventory(args = {}, options = {}) {
+function coreArgsForModelInventory(args) {
   validateKnownArguments(args, ["tool"]);
   validateReadOnlyArguments(args);
   const result = ["models", "inventory", "--json"];
@@ -375,9 +360,33 @@ export function modelInventory(args = {}, options = {}) {
     }
     result.push("--tool", args.tool);
   }
-  return runCore(result, options);
+  return result;
+}
+
+function coreArgsForLatestDiff() {
+  return ["diff", "--latest", "--json"];
+}
+
+export function scanSummaryInvocation(args = {}, options = {}) {
+  return runCoreInvocation(coreArgsForScan(args), options);
+}
+
+export function scanSummary(args = {}, options = {}) {
+  return scanSummaryInvocation(args, options).then(({ report }) => report);
+}
+
+export function modelInventoryInvocation(args = {}, options = {}) {
+  return runCoreInvocation(coreArgsForModelInventory(args), options);
+}
+
+export function modelInventory(args = {}, options = {}) {
+  return modelInventoryInvocation(args, options).then(({ report }) => report);
+}
+
+export function latestDiffInvocation(options = {}) {
+  return runCoreInvocation(coreArgsForLatestDiff(), options);
 }
 
 export function latestDiff(options = {}) {
-  return runCore(["diff", "--latest", "--json"], options);
+  return latestDiffInvocation(options).then(({ report }) => report);
 }

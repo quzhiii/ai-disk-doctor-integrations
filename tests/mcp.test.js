@@ -15,10 +15,13 @@ import {
   TESTED_CORE_VERSION,
   coreStatus,
   latestDiff as coreLatestDiff,
+  latestDiffInvocation,
   modelInventory,
+  modelInventoryInvocation,
   parseCoreJson,
   runCore,
   scanSummary,
+  scanSummaryInvocation,
   validateCoreArgv,
   validateKnownArguments,
   validateReadOnlyArguments,
@@ -30,7 +33,6 @@ import {
   SCAN_FINDING_LIMIT,
   contentFor,
   coreStatus as coreStatusTool,
-  latestDiff as latestDiffTool,
   projectLatestDiff,
   projectModelInventory,
   projectScanReport,
@@ -43,6 +45,18 @@ async function fakeCoreScript(body) {
   const script = join(dir, "fake-core.mjs");
   await writeFile(script, body);
   return script;
+}
+
+function scanFixture() {
+  return { scan_time: "now", volumes: [], findings: [], summary: { top_findings: [] } };
+}
+
+function inventoryFixture() {
+  return { schema_version: 1, generated_at: "now", roots: [], assets: [], summary: {} };
+}
+
+function diffFixture() {
+  return { generated_at: "now", before: "a", after: "b", summary: {}, changes: [] };
 }
 
 test("tool registry exposes only the hardened I0.1 non-destructive surface", () => {
@@ -75,18 +89,19 @@ test("tool input and output schemas compile and validate structured output", asy
   assert.equal(statusSchema(await coreStatusTool()), true, ajv.errorsText(statusSchema.errors));
   const latestDiffSchema = ajv.compile(TOOL_DEFINITIONS[3].outputSchema);
   assert.equal(
-    latestDiffSchema(projectLatestDiff({ generated_at: "now", before: "a", after: "b", summary: {}, changes: [] })),
+    latestDiffSchema(projectLatestDiff({ report: diffFixture(), argv: ["diff", "--latest", "--json"] })),
     true,
     ajv.errorsText(latestDiffSchema.errors),
   );
 });
 
-test("missing Core status is unavailable and not ok", async () => {
+test("missing Core status is unavailable and reports non-destructive diagnostic mode", async () => {
   const previous = process.env.AIDISK_EXE;
   process.env.AIDISK_EXE = "definitely-not-aidisk-executable";
   try {
     const result = await coreStatus();
     assert.equal(result.ok, false);
+    assert.equal(result.server.mode, "non-destructive-diagnostic");
     assert.equal(result.core.compatibility_status, "unavailable");
   } finally {
     if (previous === undefined) delete process.env.AIDISK_EXE;
@@ -94,7 +109,7 @@ test("missing Core status is unavailable and not ok", async () => {
   }
 });
 
-test("input narrowing rejects forbidden filesystem and mutation arguments", () => {
+test("input narrowing rejects forbidden filesystem and mutation argument names", () => {
   for (const key of ["yes", "delete", "cleanup", "clean", "quarantine", "restore", "shell", "arbitrary_shell"]) {
     assert.throws(() => validateReadOnlyArguments({ [key]: true }), /non-destructive diagnostic/);
   }
@@ -123,9 +138,9 @@ test("fixed Core invocations do not accept arbitrary paths or commands", async (
 import { appendFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 appendFileSync(${JSON.stringify(calls)}, JSON.stringify(args) + '\\n');
-if (args[0] === 'scan') console.log(JSON.stringify({ scan_time:'now', volumes:[], findings:[], summary:{ top_findings: [] } }));
-else if (args[0] === 'models') console.log(JSON.stringify({ schema_version:1, generated_at:'now', roots:[], assets:[], summary:{} }));
-else if (args[0] === 'diff') console.log(JSON.stringify({ generated_at:'now', before:'a', after:'b', summary:{}, changes:[] }));
+if (args[0] === 'scan') console.log(JSON.stringify(${JSON.stringify(scanFixture())}));
+else if (args[0] === 'models') console.log(JSON.stringify(${JSON.stringify(inventoryFixture())}));
+else if (args[0] === 'diff') console.log(JSON.stringify(${JSON.stringify(diffFixture())}));
 else console.log('help');
 `);
   await scanSummary({ category: "ai-agent" }, { command: process.execPath, prefixArgs: [script] });
@@ -142,46 +157,56 @@ else console.log('help');
   );
 });
 
+test("provenance.command is the exact argv executed by the Core invocation", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (args[0] === 'scan') console.log(JSON.stringify(${JSON.stringify(scanFixture())}));
+else if (args[0] === 'models') console.log(JSON.stringify(${JSON.stringify(inventoryFixture())}));
+else if (args[0] === 'diff') console.log(JSON.stringify(${JSON.stringify(diffFixture())}));
+else console.log('help');
+`);
+  const options = { command: process.execPath, prefixArgs: [script] };
+
+  const scanDefault = projectScanReport(await scanSummaryInvocation({}, options));
+  assert.deepEqual(scanDefault.provenance.command, ["scan", "--json"]);
+
+  const scanCategory = projectScanReport(await scanSummaryInvocation({ category: "ai-agent" }, options));
+  assert.deepEqual(scanCategory.provenance.command, ["scan", "--json", "--category", "ai-agent"]);
+
+  const inventoryDefault = projectModelInventory(await modelInventoryInvocation({}, options));
+  assert.deepEqual(inventoryDefault.provenance.command, ["models", "inventory", "--json"]);
+
+  const inventoryTool = projectModelInventory(await modelInventoryInvocation({ tool: "ollama" }, options));
+  assert.deepEqual(inventoryTool.provenance.command, ["models", "inventory", "--json", "--tool", "ollama"]);
+
+  const diff = projectLatestDiff(await latestDiffInvocation(options));
+  assert.deepEqual(diff.provenance.command, ["diff", "--latest", "--json"]);
+});
+
+test("mutation-like substrings in a legal category value do not trigger argv false positives", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) !== JSON.stringify(['scan','--json','--category','cleanup-cache'])) process.exit(2);
+console.log(JSON.stringify(${JSON.stringify(scanFixture())}));
+`);
+  const invocation = await scanSummaryInvocation(
+    { category: "cleanup-cache" },
+    { command: process.execPath, prefixArgs: [script] },
+  );
+  assert.deepEqual(invocation.argv, ["scan", "--json", "--category", "cleanup-cache"]);
+  assert.deepEqual(projectScanReport(invocation).provenance.command, invocation.argv);
+});
+
 test("latest_diff uses Core diff --latest and performs no pair calculation", async () => {
   const script = await fakeCoreScript(`
 const args = process.argv.slice(2);
 if (JSON.stringify(args) !== JSON.stringify(['diff','--latest','--json'])) process.exit(2);
 console.log(JSON.stringify({ generated_at:'now', before:'core-before.json', after:'core-after.json', summary:{ grew:1 }, changes:[{ path:'x', delta_bytes:1 }] }));
 `);
-  const result = projectLatestDiff(await coreLatestDiff({ command: process.execPath, prefixArgs: [script] }));
+  const result = projectLatestDiff(await latestDiffInvocation({ command: process.execPath, prefixArgs: [script] }));
   assert.equal(result.before, "core-before.json");
   assert.equal(result.after, "core-after.json");
   assert.equal(result.returned_changes, 1);
-});
-
-test("provenance command equals actual executed Core argv", async () => {
-  const script = await fakeCoreScript(`
-const args = process.argv.slice(2);
-if (args[0] === 'scan') console.log(JSON.stringify({ scan_time:'now', volumes:[], findings:[], summary:{ top_findings: [] } }));
-else if (args[0] === 'models') console.log(JSON.stringify({ schema_version:1, generated_at:'now', roots:[], assets:[], summary:{} }));
-else if (args[0] === 'diff') console.log(JSON.stringify({ generated_at:'now', before:'a', after:'b', summary:{}, changes:[] }));
-else process.exit(2);
-`);
-  assert.deepEqual(
-    projectScanReport(await scanSummary({}, { command: process.execPath, prefixArgs: [script] })).provenance.command,
-    ["scan", "--json"],
-  );
-  assert.deepEqual(
-    projectScanReport(await scanSummary({ category: "ai-agent" }, { command: process.execPath, prefixArgs: [script] })).provenance.command,
-    ["scan", "--json", "--category", "ai-agent"],
-  );
-  assert.deepEqual(
-    projectModelInventory(await modelInventory({}, { command: process.execPath, prefixArgs: [script] })).provenance.command,
-    ["models", "inventory", "--json"],
-  );
-  assert.deepEqual(
-    projectModelInventory(await modelInventory({ tool: "ollama" }, { command: process.execPath, prefixArgs: [script] })).provenance.command,
-    ["models", "inventory", "--json", "--tool", "ollama"],
-  );
-  assert.deepEqual(
-    projectLatestDiff(await coreLatestDiff({ command: process.execPath, prefixArgs: [script] })).provenance.command,
-    ["diff", "--latest", "--json"],
-  );
 });
 
 test("latest_diff surfaces Core insufficient-history errors without Integration fallback", async () => {
@@ -227,7 +252,7 @@ test("bounded scan projection preserves Core fields without full report echo", (
       top_findings: findings.map(({ id, path, risk, size_bytes, partial }) => ({ id, path, risk, size_bytes, partial })),
     },
   };
-  const result = projectScanReport(report);
+  const result = projectScanReport({ report, argv: ["scan", "--json"] });
   assert.equal(result.returned_findings, SCAN_FINDING_LIMIT);
   assert.equal(result.total_findings, findings.length);
   assert.equal(result.truncated, true);
@@ -242,7 +267,8 @@ test("bounded model inventory projection preserves Core asset semantics", () => 
     action: "report-only",
     reclaim_confidence: 0,
   }));
-  const result = projectModelInventory({ schema_version: 1, generated_at: "now", roots: [], assets, summary: { total_assets: assets.length } });
+  const report = { schema_version: 1, generated_at: "now", roots: [], assets, summary: { total_assets: assets.length } };
+  const result = projectModelInventory({ report, argv: ["models", "inventory", "--json"] });
   assert.equal(result.returned_assets, MODEL_ASSET_LIMIT);
   assert.equal(result.total_assets, assets.length);
   assert.equal(result.truncated, true);
@@ -251,7 +277,8 @@ test("bounded model inventory projection preserves Core asset semantics", () => 
 
 test("bounded latest diff projection limits Core changes", () => {
   const changes = Array.from({ length: DIFF_CHANGE_LIMIT + 1 }, (_, index) => ({ path: `p${index}`, delta_bytes: index }));
-  const result = projectLatestDiff({ generated_at: "now", before: "b", after: "a", summary: {}, changes });
+  const report = { generated_at: "now", before: "b", after: "a", summary: {}, changes };
+  const result = projectLatestDiff({ report, argv: ["diff", "--latest", "--json"] });
   assert.equal(result.returned_changes, DIFF_CHANGE_LIMIT);
   assert.equal(result.total_changes, changes.length);
   assert.equal(result.truncated, true);
