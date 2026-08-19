@@ -1,6 +1,7 @@
 import {
   TESTED_CORE_REVISION,
   TESTED_CORE_VERSION,
+  coreArgvForResult,
   coreStatus as getCoreStatus,
   latestDiff as getLatestDiff,
   modelInventory,
@@ -47,7 +48,7 @@ function matchFinding(findings, topFinding) {
   return findings.find((finding) => finding.id === topFinding.id && finding.path === topFinding.path) || null;
 }
 
-export function projectScanReport(report, { findingLimit = SCAN_FINDING_LIMIT } = {}) {
+export function projectScanReport(report, { command = coreArgvForResult(report), findingLimit = SCAN_FINDING_LIMIT } = {}) {
   const topFindings = Array.isArray(report.summary?.top_findings)
     ? report.summary.top_findings.slice(0, findingLimit)
     : [];
@@ -60,7 +61,7 @@ export function projectScanReport(report, { findingLimit = SCAN_FINDING_LIMIT } 
   return {
     ok: true,
     tool: "scan_summary",
-    provenance: provenance(["scan", "--json"], [
+    provenance: provenance(command, [
       "current Core CLI scan persists a Core-owned .aidisk/reports/scan-*.json snapshot",
     ]),
     scan_time: report.scan_time,
@@ -74,13 +75,13 @@ export function projectScanReport(report, { findingLimit = SCAN_FINDING_LIMIT } 
   };
 }
 
-export function projectModelInventory(report, { assetLimit = MODEL_ASSET_LIMIT } = {}) {
+export function projectModelInventory(report, { command = coreArgvForResult(report), assetLimit = MODEL_ASSET_LIMIT } = {}) {
   const assets = Array.isArray(report.assets) ? report.assets : [];
   const projectedAssets = assets.slice(0, assetLimit);
   return {
     ok: true,
     tool: "ai_model_inventory",
-    provenance: provenance(["models", "inventory", "--json"]),
+    provenance: provenance(command),
     schema_version: report.schema_version,
     generated_at: report.generated_at,
     stale_after_days: report.stale_after_days,
@@ -93,13 +94,13 @@ export function projectModelInventory(report, { assetLimit = MODEL_ASSET_LIMIT }
   };
 }
 
-export function projectLatestDiff(report, { changeLimit = DIFF_CHANGE_LIMIT } = {}) {
+export function projectLatestDiff(report, { command = coreArgvForResult(report), changeLimit = DIFF_CHANGE_LIMIT } = {}) {
   const changes = Array.isArray(report.changes) ? report.changes : [];
   const projectedChanges = changes.slice(0, changeLimit);
   return {
     ok: true,
     tool: "latest_diff",
-    provenance: provenance(["diff", "--latest", "--json"]),
+    provenance: provenance(command),
     generated_at: report.generated_at,
     before: report.before,
     after: report.after,

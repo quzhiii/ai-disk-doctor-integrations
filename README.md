@@ -15,7 +15,7 @@ The MCP server exposes four tools:
 | `ai_model_inventory` | Run `aidisk models inventory --json` with Core defaults and return bounded assets | `tool?` | None intended |
 | `latest_diff` | Run Core-owned `aidisk diff --latest --json` and return bounded changes | None | None |
 
-I0.1 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, or arbitrary filesystem mutation tool. `explain_storage` is intentionally not included until a merged public Core Explainability Contract is accepted in a later scope.
+I0.1 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, or arbitrary filesystem mutation tool. Public Core has merged M1C explainability-v1 at `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, but this I0.1 integration remains tested against `52f31509394d2165cba8908da00a1036ba90479d` and does not consume or expose an explainability MCP tool.
 
 ## Install
 
@@ -24,6 +24,7 @@ I0.1 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arb
 - Node.js 18 or newer.
 - AI Disk Doctor Core v1.7.0 baseline on `PATH` as `aidisk`/`aidisk.exe`, or set `AIDISK_EXE`.
 - The integration was tested against Core revision `52f31509394d2165cba8908da00a1036ba90479d`; current Core binaries do not expose a runtime git revision, so runtime status is `compatible-unverified` unless a future Core identity contract proves the exact revision.
+- Latest merged public Core known during this review is `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, where M1C explainability-v1 is merged. I0.1 does not consume it.
 
 Install from a checkout:
 

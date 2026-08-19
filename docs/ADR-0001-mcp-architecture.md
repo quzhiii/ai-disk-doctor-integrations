@@ -63,7 +63,7 @@ The server has no arbitrary shell, delete, clean, quarantine, restore, or mutati
 - `core_status`, `ai_model_inventory`, `latest_diff`: `readOnlyHint: true`
 - `scan_summary`: `readOnlyHint: false`, `destructiveHint: false`, because current Core scan saves a snapshot
 
-I0 does not expose `explain_storage` until the merged M1C Explainability Contract is available in the public Core.
+Public Core has since merged M1C explainability-v1 at `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, but I0.1 remains pinned and tested against `52f31509394d2165cba8908da00a1036ba90479d` and does not expose `explain_storage` or any explainability MCP tool in this PR.
 
 ## Compatibility Contract
 

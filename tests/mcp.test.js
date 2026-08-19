@@ -96,15 +96,25 @@ test("missing Core status is unavailable and not ok", async () => {
 
 test("input narrowing rejects forbidden filesystem and mutation arguments", () => {
   for (const key of ["yes", "delete", "cleanup", "clean", "quarantine", "restore", "shell", "arbitrary_shell"]) {
-    assert.throws(() => validateReadOnlyArguments({ [key]: true }), /read-only/);
+    assert.throws(() => validateReadOnlyArguments({ [key]: true }), /non-destructive diagnostic/);
   }
-  assert.throws(() => validateReadOnlyArguments({ "--yes": true }), /read-only/);
+  assert.throws(() => validateReadOnlyArguments({ "--yes": true }), /non-destructive diagnostic/);
   assert.throws(() => validateCoreArgv(["clean", "--dry-run", "--json"]), /allowlist/);
   assert.throws(() => validateKnownArguments({ unexpected: true }, []), /not supported/);
   for (const key of ["rules_dir", "policy", "root", "reports_dir", "command", "shell", "delete", "cleanup", "quarantine", "restore"]) {
-    assert.throws(() => scanSummary({ [key]: "x" }), /not supported|read-only/);
-    assert.throws(() => modelInventory({ [key]: "x" }), /not supported|read-only/);
+    assert.throws(() => scanSummary({ [key]: "x" }), /not supported|non-destructive diagnostic/);
+    assert.throws(() => modelInventory({ [key]: "x" }), /not supported|non-destructive diagnostic/);
   }
+});
+
+test("argv validation does not reject allowed values containing mutation words", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) !== JSON.stringify(['scan','--json','--category','cleanup-cache'])) process.exit(2);
+console.log(JSON.stringify({ scan_time:'now', volumes:[], findings:[], summary:{ top_findings: [] } }));
+`);
+  const result = await scanSummary({ category: "cleanup-cache" }, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.scan_time, "now");
 });
 
 test("fixed Core invocations do not accept arbitrary paths or commands", async () => {
@@ -142,6 +152,36 @@ console.log(JSON.stringify({ generated_at:'now', before:'core-before.json', afte
   assert.equal(result.before, "core-before.json");
   assert.equal(result.after, "core-after.json");
   assert.equal(result.returned_changes, 1);
+});
+
+test("provenance command equals actual executed Core argv", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (args[0] === 'scan') console.log(JSON.stringify({ scan_time:'now', volumes:[], findings:[], summary:{ top_findings: [] } }));
+else if (args[0] === 'models') console.log(JSON.stringify({ schema_version:1, generated_at:'now', roots:[], assets:[], summary:{} }));
+else if (args[0] === 'diff') console.log(JSON.stringify({ generated_at:'now', before:'a', after:'b', summary:{}, changes:[] }));
+else process.exit(2);
+`);
+  assert.deepEqual(
+    projectScanReport(await scanSummary({}, { command: process.execPath, prefixArgs: [script] })).provenance.command,
+    ["scan", "--json"],
+  );
+  assert.deepEqual(
+    projectScanReport(await scanSummary({ category: "ai-agent" }, { command: process.execPath, prefixArgs: [script] })).provenance.command,
+    ["scan", "--json", "--category", "ai-agent"],
+  );
+  assert.deepEqual(
+    projectModelInventory(await modelInventory({}, { command: process.execPath, prefixArgs: [script] })).provenance.command,
+    ["models", "inventory", "--json"],
+  );
+  assert.deepEqual(
+    projectModelInventory(await modelInventory({ tool: "ollama" }, { command: process.execPath, prefixArgs: [script] })).provenance.command,
+    ["models", "inventory", "--json", "--tool", "ollama"],
+  );
+  assert.deepEqual(
+    projectLatestDiff(await coreLatestDiff({ command: process.execPath, prefixArgs: [script] })).provenance.command,
+    ["diff", "--latest", "--json"],
+  );
 });
 
 test("latest_diff surfaces Core insufficient-history errors without Integration fallback", async () => {
@@ -248,7 +288,7 @@ test("MCP stdio smoke lists hardened tools and rejects invalid inputs", async ()
   assert.deepEqual(listed.tools.map((tool) => tool.name), toolNames());
   const status = await client.callTool({ name: "core_status", arguments: {} });
   assert.equal(status.isError, undefined);
-  assert.equal(status.structuredContent.server.mode, "read-only");
+  assert.equal(status.structuredContent.server.mode, "non-destructive-diagnostic");
   const rejected = await client.callTool({ name: "scan_summary", arguments: { rules_dir: "x" } });
   assert.equal(rejected.isError, true);
   assert.equal(rejected.structuredContent, undefined);

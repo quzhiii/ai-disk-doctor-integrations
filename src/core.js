@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 export const SERVER_VERSION = "0.1.0-alpha.2";
 export const TESTED_CORE_REVISION = "52f31509394d2165cba8908da00a1036ba90479d";
 export const TESTED_CORE_VERSION = "1.7.0";
+export const SERVER_MODE = "non-destructive-diagnostic";
 export const CORE_TIMEOUT_MS = 120_000;
 export const MAX_CORE_STDOUT_BYTES = 4 * 1024 * 1024;
 export const MAX_CORE_STDERR_BYTES = 64 * 1024;
@@ -22,6 +23,7 @@ const mutationArguments = new Set([
   "command",
   "shell",
 ]);
+export const CORE_ARGV_METADATA = Symbol("aidiskCoreArgv");
 
 export class CoreError extends Error {
   constructor(message, details = {}) {
@@ -87,7 +89,7 @@ export function validateReadOnlyArguments(args = {}) {
       normalized.includes("quarantine") ||
       normalized.includes("restore")
     ) {
-      throw new CoreError(`argument '${key}' is not available in the read-only integration`);
+      throw new CoreError(`argument '${key}' is not available in the non-destructive diagnostic integration`);
     }
   }
 }
@@ -152,7 +154,6 @@ function executeCore(args, {
   prefixArgs = [],
 } = {}) {
   validateCoreArgv(args);
-  validateReadOnlyArguments(Object.fromEntries(args.map((arg) => [arg, true])));
   return new Promise((resolve, reject) => {
     const child = spawn(command, [...prefixArgs, ...args], {
       cwd,
@@ -238,9 +239,26 @@ function executeCore(args, {
   });
 }
 
+function attachCoreArgv(value, args) {
+  if (value !== null && typeof value === "object") {
+    Object.defineProperty(value, CORE_ARGV_METADATA, {
+      value: [...args],
+      enumerable: false,
+      configurable: true,
+    });
+  }
+  return value;
+}
+
+export function coreArgvForResult(value) {
+  const args = value?.[CORE_ARGV_METADATA];
+  return Array.isArray(args) ? [...args] : [];
+}
+
 export function runCore(args, options = {}) {
-  return executeCore(args, options).then(({ stdout, stderr, captures }) =>
-    parseCoreJson(stdout, { args, stderr, captures }));
+  const coreArgs = [...args];
+  return executeCore(coreArgs, options).then(({ stdout, stderr, captures }) =>
+    attachCoreArgv(parseCoreJson(stdout, { args: coreArgs, stderr, captures }), coreArgs));
 }
 
 export function runCoreText(args, options = {}) {
@@ -281,7 +299,7 @@ export async function coreStatus() {
       name: "ai-disk-doctor",
       version: SERVER_VERSION,
       transport: "stdio",
-      mode: "read-only",
+      mode: SERVER_MODE,
     },
     core,
   };

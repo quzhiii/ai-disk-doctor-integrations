@@ -24,3 +24,10 @@ Sources are linked to official vendor documentation. Availability is based on th
 - [TRAE Skills documentation](https://docs.trae.ai/ide/skills)
 
 CodeBuddy and WorkBuddy packaging remains intentionally conservative until the exact installed product documentation and local client are available. No unverified client behavior is encoded in the canonical Skill or MCP server.
+
+## Core State
+
+- I0.1 tested baseline remains AI Disk Doctor Core v1.7.0 at `52f31509394d2165cba8908da00a1036ba90479d`.
+- Latest merged public Core known during this review is `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`.
+- M1C explainability-v1 is merged in that latest Core state, but PR #1 does not consume it or expose an explainability MCP tool.
+- Runtime compatibility is checked by `core_status`; the current Core binary does not expose an exact runtime git revision.

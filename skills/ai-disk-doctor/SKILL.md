@@ -2,7 +2,7 @@
 name: ai-disk-doctor
 description: Diagnose AI and developer workspace storage with AI Disk Doctor's local Core. Use when asking why a disk is full, which AI tools or model caches consume space, what changed recently, what Core evidence supports a classification, or what should be reviewed safely.
 license: MIT OR Apache-2.0
-compatibility: Local AI Disk Doctor Core v1.7.0+ and an MCP-compatible Agent client. Read-only alpha; scan may persist a Core-owned snapshot.
+compatibility: Tested against AI Disk Doctor Core v1.7.0. Runtime compatibility is checked by core_status. Non-destructive diagnostic alpha; scan may persist a Core-owned snapshot.
 metadata:
   integration: ai-disk-doctor-integrations
   safety: non-destructive-diagnostic-alpha
@@ -54,7 +54,7 @@ Do not promise reclaimable space unless the Core explicitly reports an estimate.
 
 ## Deferred Capability
 
-Do not implement or infer `explain_storage` in the Skill. Add it only after the public Core publishes the merged M1C Explainability Contract and this repository pins and tests that contract.
+Do not implement or infer `explain_storage` in the Skill. Public Core has merged M1C explainability-v1, but I0.1 has not pinned, tested, or exposed that newer application-boundary capability as an MCP tool.
 
 For the safety model, tool semantics, examples, and compatibility details, load the linked references only when needed:
 

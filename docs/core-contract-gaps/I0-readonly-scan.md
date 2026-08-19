@@ -41,5 +41,5 @@ The option should preserve current CLI defaults so existing history/diff behavio
 
 - Do not modify Core.
 - Do not publish a Core contract from the integration repository.
-- Do not consume unmerged Explainability or scan contract branches.
+- Do not consume newer Explainability or scan contract branches from this I0.1 lane.
 - Do not claim `readOnlyHint: true` for `scan_summary` until the production runtime demonstrably avoids Core-owned writes.

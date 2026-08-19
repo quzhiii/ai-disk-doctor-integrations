@@ -30,7 +30,7 @@ const coreStatusOutputSchema = {
         name: { type: "string" },
         version: { type: "string" },
         transport: { const: "stdio" },
-        mode: { const: "read-only" },
+        mode: { const: "non-destructive-diagnostic" },
       },
       additionalProperties: true,
     },

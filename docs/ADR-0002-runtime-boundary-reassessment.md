@@ -8,7 +8,7 @@ Date: 2026-08-19
 
 I0 shipped a Node.js stdio MCP server over fixed AI Disk Doctor Core CLI JSON contracts. I0.1 reassesses whether production should remain on the CLI boundary or migrate to a Rust MCP binary that depends on the public Core application boundary.
 
-The spike uses only merged public Core revision `52f31509394d2165cba8908da00a1036ba90479d`.
+The spike uses I0.1's tested public Core baseline `52f31509394d2165cba8908da00a1036ba90479d`. Latest merged public Core known during final review is `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, where M1C explainability-v1 is merged; this PR does not consume that newer Core revision.
 
 ## Option A: Node stdio MCP over fixed Core CLI JSON
 
@@ -79,6 +79,13 @@ CI evidence in this branch:
 
 - `rust-spike` CI job runs the spike on Windows, macOS, and Ubuntu.
 - This proves compile/run behavior for the proof-of-concept, not marketplace packaging readiness.
+
+M1C explainability-v1 architecture input:
+
+- M1C explainability-v1 is merged in public Core at `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`.
+- At the current known Core state, explainability is exposed through the Rust application boundary via `run_explainable_scan` and `run_explainable_scan_with_progress`.
+- Current Core CLI has no explainability CLI contract for this integration to invoke.
+- An explainability MCP tool is deferred to a later milestone and is not implemented in PR #1.
 
 ## Comparison
 
