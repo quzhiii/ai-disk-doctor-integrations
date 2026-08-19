@@ -2,18 +2,41 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [master]
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  node:
+    name: node-${{ matrix.node-version }}-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        node-version: [18]
+        include:
+          - os: ubuntu-latest
+            node-version: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - run: npm audit --audit-level=moderate
+      - run: git diff --check
+
+  rust-spike:
+    name: rust-spike-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo run --manifest-path spikes/rust-direct-core/Cargo.toml

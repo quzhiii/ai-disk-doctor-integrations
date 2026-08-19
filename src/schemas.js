@@ -5,6 +5,19 @@ const objectSchema = {
   additionalProperties: false,
 };
 
+const provenanceSchema = {
+  type: "object",
+  required: ["source", "command", "tested_core_version", "tested_core_revision", "side_effects"],
+  properties: {
+    source: { const: "ai-disk-doctor-core-cli" },
+    command: { type: "array", items: { type: "string" } },
+    tested_core_version: { type: "string" },
+    tested_core_revision: { type: "string" },
+    side_effects: { type: "array", items: { type: "string" } },
+  },
+  additionalProperties: false,
+};
+
 const coreStatusOutputSchema = {
   type: "object",
   required: ["ok", "server", "core"],
@@ -23,14 +36,29 @@ const coreStatusOutputSchema = {
     },
     core: {
       type: "object",
-      required: ["command", "expected_version", "tested_revision", "compatible", "available"],
+      required: [
+        "command",
+        "expected_version",
+        "tested_revision",
+        "revision_verification",
+        "version_verification",
+        "command_surface",
+        "available",
+        "compatibility_status",
+      ],
       properties: {
         command: { type: "string" },
         expected_version: { type: "string" },
-        tested_revision: { type: "string" },
         detected_version: { type: ["string", "null"] },
-        compatible: { type: "boolean" },
+        tested_revision: { type: "string" },
+        revision_verification: { type: "string" },
+        version_verification: { type: "string" },
+        command_surface: { type: "object", additionalProperties: true },
+        capabilities: { type: "array", items: { type: "string" } },
         available: { type: "boolean" },
+        compatibility_status: {
+          enum: ["tested", "compatible-unverified", "incompatible", "unavailable"],
+        },
       },
       additionalProperties: true,
     },
@@ -38,37 +66,102 @@ const coreStatusOutputSchema = {
   additionalProperties: false,
 };
 
-const coreReportOutputSchema = {
+const boundedScanOutputSchema = {
   type: "object",
-  required: ["ok", "source", "mode", "report"],
+  required: [
+    "ok",
+    "tool",
+    "provenance",
+    "volumes",
+    "summary",
+    "top_findings",
+    "total_findings",
+    "returned_findings",
+    "truncated",
+  ],
   properties: {
     ok: { const: true },
-    source: { const: "ai-disk-doctor-core" },
-    mode: { const: "read-only" },
-    report: { type: "object", additionalProperties: true },
+    tool: { const: "scan_summary" },
+    provenance: provenanceSchema,
+    scan_time: { type: ["string", "null"] },
+    policy: { type: ["object", "null"] },
+    volumes: { type: "array", items: { type: "object", additionalProperties: true } },
+    summary: { type: "object", additionalProperties: true },
+    top_findings: {
+      type: "array",
+      maxItems: 25,
+      items: {
+        type: "object",
+        required: ["top_finding", "finding", "matched_core_finding"],
+        properties: {
+          top_finding: { type: "object", additionalProperties: true },
+          finding: { type: ["object", "null"], additionalProperties: true },
+          matched_core_finding: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    },
+    total_findings: { type: "integer", minimum: 0 },
+    returned_findings: { type: "integer", minimum: 0, maximum: 25 },
+    truncated: { type: "boolean" },
   },
   additionalProperties: false,
 };
 
-const historyOutputSchema = {
+const boundedInventoryOutputSchema = {
   type: "object",
-  required: ["ok", "source", "mode", "reports_dir", "snapshots", "latest_snapshot", "latest_pair"],
+  required: [
+    "ok",
+    "tool",
+    "provenance",
+    "summary",
+    "roots",
+    "assets",
+    "total_assets",
+    "returned_assets",
+    "truncated",
+  ],
   properties: {
     ok: { const: true },
-    source: { const: "ai-disk-doctor-core-snapshot-metadata" },
-    mode: { const: "read-only" },
-    reports_dir: { type: "string" },
-    snapshots: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["path", "file_name"],
-        properties: { path: { type: "string" }, file_name: { type: "string" } },
-        additionalProperties: false,
-      },
-    },
-    latest_snapshot: { type: ["object", "null"] },
-    latest_pair: { type: ["object", "null"] },
+    tool: { const: "ai_model_inventory" },
+    provenance: provenanceSchema,
+    schema_version: { type: ["integer", "null"] },
+    generated_at: { type: ["string", "null"] },
+    stale_after_days: { type: ["integer", "null"] },
+    summary: { type: "object", additionalProperties: true },
+    roots: { type: "array", items: { type: "object", additionalProperties: true } },
+    assets: { type: "array", maxItems: 25, items: { type: "object", additionalProperties: true } },
+    total_assets: { type: "integer", minimum: 0 },
+    returned_assets: { type: "integer", minimum: 0, maximum: 25 },
+    truncated: { type: "boolean" },
+  },
+  additionalProperties: false,
+};
+
+const boundedDiffOutputSchema = {
+  type: "object",
+  required: [
+    "ok",
+    "tool",
+    "provenance",
+    "summary",
+    "changes",
+    "total_changes",
+    "returned_changes",
+    "truncated",
+  ],
+  properties: {
+    ok: { const: true },
+    tool: { const: "latest_diff" },
+    provenance: provenanceSchema,
+    generated_at: { type: ["string", "null"] },
+    before: { type: ["string", "null"] },
+    after: { type: ["string", "null"] },
+    summary: { type: "object", additionalProperties: true },
+    changes: { type: "array", maxItems: 50, items: { type: "object", additionalProperties: true } },
+    total_changes: { type: "integer", minimum: 0 },
+    returned_changes: { type: "integer", minimum: 0, maximum: 50 },
+    truncated: { type: "boolean" },
   },
   additionalProperties: false,
 };
@@ -78,7 +171,7 @@ export const TOOL_DEFINITIONS = [
     name: "core_status",
     title: "AI Disk Doctor Core Status",
     description:
-      "Check whether the local AI Disk Doctor Core is installed, compatible, and callable. This does not scan or modify files.",
+      "Check local AI Disk Doctor Core availability, required command surface, semantic version, and compatibility provenance without scanning or modifying files.",
     inputSchema: { ...objectSchema, properties: {} },
     outputSchema: coreStatusOutputSchema,
     annotations: {
@@ -92,82 +185,62 @@ export const TOOL_DEFINITIONS = [
     name: "scan_summary",
     title: "AI Disk Doctor Scan Summary",
     description:
-      "Run AI Disk Doctor's existing non-destructive scan and return its structured JSON report. The Core may persist an AI Disk Doctor-owned snapshot under .aidisk/reports; it does not mutate user files.",
+      "Run AI Disk Doctor's existing non-destructive scan and return a bounded projection of Core JSON evidence. The current Core CLI may persist an AI Disk Doctor-owned snapshot under .aidisk/reports; it does not mutate user files.",
     inputSchema: {
       ...objectSchema,
       properties: {
         category: {
           type: "string",
-          description: "Optional existing Core rule category filter.",
-        },
-        rules_dir: {
-          type: "string",
-          description: "Optional local rules directory understood by the Core.",
-        },
-        policy: {
-          type: "string",
-          description: "Optional local policy file understood by the Core.",
+          minLength: 1,
+          maxLength: 128,
+          description: "Optional Core rule category filter. The integration validates only bounds; Core owns category semantics.",
         },
       },
     },
+    outputSchema: boundedScanOutputSchema,
     annotations: {
-      // Core scan creates a Core-owned snapshot; this is not a read-only MCP call.
       readOnlyHint: false,
       destructiveHint: false,
       idempotentHint: false,
       openWorldHint: false,
     },
-    outputSchema: coreReportOutputSchema,
   },
   {
     name: "ai_model_inventory",
     title: "AI Model And Cache Inventory",
     description:
-      "Use AI Disk Doctor's existing metadata-only model inventory for Ollama, Hugging Face, LM Studio, or generic model files. It does not read model, prompt, source, token, or credential contents and does not mutate files.",
+      "Use AI Disk Doctor's existing metadata-only model inventory with Core defaults and return a bounded asset projection. It does not read model, prompt, source, token, or credential contents and does not mutate files.",
     inputSchema: {
       ...objectSchema,
       properties: {
         tool: {
           type: "string",
           enum: ["auto", "ollama", "huggingface", "lm-studio", "generic"],
+          description: "Optional Core inventory tool selector.",
         },
-        root: {
-          type: "string",
-          description: "Optional inventory root path.",
-        },
-        max_depth: { type: "integer", minimum: 0, maximum: 100 },
-        stale_after_days: { type: "integer", minimum: 0, maximum: 36500 },
       },
     },
+    outputSchema: boundedInventoryOutputSchema,
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
       openWorldHint: false,
     },
-    outputSchema: coreReportOutputSchema,
   },
   {
-    name: "scan_history",
-    title: "AI Disk Doctor Scan History",
+    name: "latest_diff",
+    title: "AI Disk Doctor Latest Diff",
     description:
-      "List AI Disk Doctor scan snapshot metadata and the newest pair in the local .aidisk/reports directory. This reads only Core-owned snapshot metadata and files; it does not modify workspace content.",
-    inputSchema: {
-      ...objectSchema,
-      properties: {
-        reports_dir: {
-          type: "string",
-          description: "Optional local AI Disk Doctor reports directory.",
-        },
-      },
-    },
+      "Use Core-owned latest snapshot discovery and diff semantics through aidisk diff --latest --json. No reports directory or paths are accepted from the model.",
+    inputSchema: { ...objectSchema, properties: {} },
+    outputSchema: boundedDiffOutputSchema,
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
       openWorldHint: false,
     },
-    outputSchema: historyOutputSchema,
   },
 ];
 

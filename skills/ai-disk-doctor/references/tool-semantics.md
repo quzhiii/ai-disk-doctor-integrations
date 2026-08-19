@@ -6,16 +6,16 @@ Checks the configured Core executable with `aidisk --help` and verifies the requ
 
 ## `scan_summary`
 
-Invokes the existing `aidisk scan --json` contract. It may persist a Core-owned scan snapshot under the current workspace’s `.aidisk/reports`. It never invokes `plan`, `clean`, `restore`, or an arbitrary command.
+Invokes the existing `aidisk scan --json` contract with optional `category` only. It may persist a Core-owned scan snapshot under the current workspace’s `.aidisk/reports`. It returns a bounded projection of Core evidence and never invokes `plan`, `clean`, `restore`, or an arbitrary command.
 
 ## `ai_model_inventory`
 
-Invokes the existing `aidisk models inventory --json` contract. Supported selectors are `auto`, `ollama`, `huggingface`, `lm-studio`, and `generic`. It returns Core metadata and inventory evidence, not model contents.
+Invokes the existing `aidisk models inventory --json` contract with optional `tool` only. Supported selectors are `auto`, `ollama`, `huggingface`, `lm-studio`, and `generic`. It uses Core defaults for root, depth, and stale cutoff. It returns bounded Core metadata and inventory evidence, not model contents.
 
-## `scan_history`
+## `latest_diff`
 
-Lists filenames and paths matching `scan-*.json` in the selected reports directory and returns the newest pair when available. It does not parse arbitrary workspace files or write state.
+Invokes `aidisk diff --latest --json` with fixed arguments. Core owns latest snapshot discovery and diff semantics. No reports directory, before path, after path, or arbitrary local path is accepted from the model.
 
 ## Structured Results
 
-Successful calls return a JSON text content block and MCP `structuredContent`. Failures return `isError: true` with a stable `{ ok: false, error: { type, message, details } }` shape.
+Successful calls return concise text plus MCP `structuredContent`. Failures return `isError: true` with concise bounded text. Core stdout/stderr evidence is capped and truncation is explicit in error details when available.

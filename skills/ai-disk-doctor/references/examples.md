@@ -2,16 +2,16 @@
 
 ## Disk Suddenly Full
 
-Call `core_status`, then `scan_summary`. Summarize the largest findings by Core category and risk. If a finding is missing, partial, active, sensitive, or report-only, say so rather than recommending removal.
+Call `core_status`, then `scan_summary`. Summarize the largest returned findings by Core category and risk. If a finding is missing, partial, active, sensitive, or report-only, say so rather than recommending removal. If `truncated` is true, say the MCP result is bounded.
 
 ## Model Storage
 
-Call `ai_model_inventory` with `tool: "auto"`. Separate logical size, exclusive physical size, shared physical size, recovery size, reclaim confidence, and blocked/unknown status. Never equate a stale model with automatically removable content.
+Call `ai_model_inventory` with `tool: "auto"` or another Core-supported selector. Separate logical size, exclusive physical size, shared physical size, recovery size, reclaim confidence, and blocked/unknown status when Core returns those fields. Never equate a stale model with automatically removable content.
 
 ## Recent Growth
 
-Call `scan_history`. If `latest_pair` exists, explain the snapshot paths and tell the user that I0 provides metadata only. Do not independently compare file contents or invent a growth ranking before a Core explainability/diff contract is explicitly integrated.
+Call `latest_diff`. Explain the Core-provided `before`, `after`, summary, and bounded changes. Do not independently list report directories, calculate latest pairs, compare file contents, or invent a growth ranking outside the Core diff output.
 
 ## Missing Core
 
-Call `core_status`. Report the configured executable, expected Core version/revision, and the structured error. Recommend installing the signed/released Core or setting `AIDISK_EXE`; do not fall back to shell deletion commands.
+Call `core_status`. Report the configured executable, detected version if available, tested revision provenance, revision verification status, compatibility status, and structured error. Recommend installing the signed/released Core or setting `AIDISK_EXE`; do not fall back to shell deletion commands.

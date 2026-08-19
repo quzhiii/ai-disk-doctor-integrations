@@ -1,0 +1,15 @@
+[package]
+name = "aidisk-rust-direct-core-spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+aidisk = { git = "https://github.com/quzhiii/ai-disk-doctor.git", rev = "52f31509394d2165cba8908da00a1036ba90479d" }
+anyhow = "1"
+serde_json = "1"
+tempfile = "3"
+
+[[bin]]
+name = "rust-direct-core-spike"
+path = "src/main.rs"

@@ -1,16 +1,16 @@
 ---
 name: ai-disk-doctor
-description: Diagnose AI and developer workspace storage with AI Disk Doctor's local Core. Use when asking why a disk is full, which AI tools or model caches consume space, what changed recently, what evidence supports a classification, or what should be reviewed safely.
+description: Diagnose AI and developer workspace storage with AI Disk Doctor's local Core. Use when asking why a disk is full, which AI tools or model caches consume space, what changed recently, what Core evidence supports a classification, or what should be reviewed safely.
 license: MIT OR Apache-2.0
 compatibility: Local AI Disk Doctor Core v1.7.0+ and an MCP-compatible Agent client. Read-only alpha; scan may persist a Core-owned snapshot.
 metadata:
   integration: ai-disk-doctor-integrations
-  safety: read-only-alpha
+  safety: non-destructive-diagnostic-alpha
 ---
 
 # AI Disk Doctor
 
-Use the AI Disk Doctor MCP tools as the workspace storage governance layer. The local AI Disk Doctor Core is the only source of truth for scanning, model inventory, history, rules, policy, risk, and future cleanup planning.
+Use the AI Disk Doctor MCP tools as the workspace storage governance layer. The local AI Disk Doctor Core is the only source of truth for scanning, model inventory, history, diff, rules, policy, risk, and future cleanup planning.
 
 ## When To Use
 
@@ -25,10 +25,10 @@ Use this Skill for questions such as:
 ## I0 Workflow
 
 1. Call `core_status` first when the Core may be missing or the environment is unfamiliar.
-2. Call `scan_summary` for current storage evidence. Use an existing category filter only when the user asks for a focused area.
-3. Call `ai_model_inventory` for model and cache questions. Treat unknown, incomplete, custom, shared, or credential-adjacent assets conservatively.
-4. Call `scan_history` when the user asks what changed recently. Explain that I0 returns snapshot metadata, not a new growth inference.
-5. Explain findings with evidence from the Core response: path, existence, size, rule/category, risk, action, partial reasons, and uncertainty fields when present.
+2. Call `scan_summary` for current storage evidence. Use `category` only when the user asks for a focused area; do not provide rules, policy, root, reports, or executable paths.
+3. Call `ai_model_inventory` for model and cache questions. Only use the optional `tool` selector. Treat unknown, incomplete, custom, shared, or credential-adjacent assets conservatively.
+4. Call `latest_diff` when the user asks what changed recently. Core owns snapshot discovery and diff semantics.
+5. Explain findings with evidence returned by Core: path, existence, size, rule/category, risk, action, reason, warnings, partial, and partial reasons when present.
 
 ## Safety Rules
 
@@ -37,6 +37,7 @@ Use this Skill for questions such as:
 - Do not classify unknown, active, partial, sensitive, source, prompt, credential, or recovery data as safe to remove.
 - A report-only or review finding is not an authorization to mutate it.
 - Say clearly that `scan_summary` may create an AI Disk Doctor-owned snapshot under `.aidisk/reports`; it does not modify user/workspace files.
+- Do not ask for or supply arbitrary rules, policy, root, reports directory, executable, or shell arguments.
 - Do not read file contents merely to classify storage. Use Core metadata and rule evidence.
 - If the Core is missing or incompatible, report that fact and stop at diagnostics. Do not substitute a generic cleaner or shell scan.
 
@@ -49,7 +50,7 @@ Lead with the largest supported conclusion, then provide:
 - items requiring review or explicitly blocked
 - the smallest safe next diagnostic step
 
-Do not promise reclaimable space unless the Core explicitly reports an estimate. Reclaim confidence is not the same as recovery value.
+Do not promise reclaimable space unless the Core explicitly reports an estimate. Reclaim confidence is not the same as recovery value. If output says `truncated: true`, say the response is a bounded projection and suggest focused follow-up diagnostics rather than inventing missing detail.
 
 ## Deferred Capability
 

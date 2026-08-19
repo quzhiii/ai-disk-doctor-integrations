@@ -1,12 +1,19 @@
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
 
-export const SERVER_VERSION = "0.1.0-alpha.1";
-export const TESTED_CORE_REVISION = "52f3150";
+export const SERVER_VERSION = "0.1.0-alpha.2";
+export const TESTED_CORE_REVISION = "52f31509394d2165cba8908da00a1036ba90479d";
 export const TESTED_CORE_VERSION = "1.7.0";
 export const CORE_TIMEOUT_MS = 120_000;
+export const MAX_CORE_STDOUT_BYTES = 4 * 1024 * 1024;
+export const MAX_CORE_STDERR_BYTES = 64 * 1024;
+export const MAX_ERROR_EVIDENCE_CHARS = 4_096;
 
+const CORE_COMMAND_SURFACE = [
+  ["scan", "--help"],
+  ["models", "inventory", "--help"],
+  ["diff", "--help"],
+];
+const INVENTORY_TOOLS = ["auto", "ollama", "huggingface", "lm-studio", "generic"];
 const mutationArguments = new Set([
   "yes",
   "dry_run",
@@ -24,6 +31,40 @@ export class CoreError extends Error {
   }
 }
 
+class BoundedCapture {
+  constructor(limit) {
+    this.limit = limit;
+    this.totalBytes = 0;
+    this.truncated = false;
+    this.chunks = [];
+    this.capturedBytes = 0;
+  }
+
+  append(chunk) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    this.totalBytes += buffer.length;
+    const remaining = this.limit - this.capturedBytes;
+    if (remaining > 0) {
+      const captured = buffer.subarray(0, remaining);
+      this.chunks.push(captured);
+      this.capturedBytes += captured.length;
+    }
+    if (buffer.length > remaining) {
+      this.truncated = true;
+    }
+  }
+
+  text(limit = Number.POSITIVE_INFINITY) {
+    return Buffer.concat(this.chunks)
+      .toString("utf8")
+      .slice(0, limit);
+  }
+}
+
+export function coreCommand() {
+  return process.env.AIDISK_EXE || "aidisk";
+}
+
 export function validateKnownArguments(args, allowed) {
   if (!args || typeof args !== "object" || Array.isArray(args)) {
     throw new CoreError("tool arguments must be an object");
@@ -35,136 +76,205 @@ export function validateKnownArguments(args, allowed) {
   }
 }
 
-export function coreCommand() {
-  return process.env.AIDISK_EXE || "aidisk";
-}
-
 export function validateReadOnlyArguments(args = {}) {
   for (const key of Object.keys(args)) {
+    const normalized = key.toLowerCase().replace(/^-+/, "").replaceAll("-", "_");
     if (
-      mutationArguments.has(key) ||
-      key.includes("delete") ||
-      key.includes("clean") ||
-      key.includes("shell")
+      mutationArguments.has(normalized) ||
+      normalized.includes("delete") ||
+      normalized.includes("clean") ||
+      normalized.includes("shell") ||
+      normalized.includes("quarantine") ||
+      normalized.includes("restore")
     ) {
       throw new CoreError(`argument '${key}' is not available in the read-only integration`);
     }
   }
 }
 
-export function validatePathArgument(value, label) {
-  if (value === undefined || value === null || value === "") return undefined;
-  if (typeof value !== "string" || value.includes("\0")) {
-    throw new CoreError(`${label} must be a valid local path string`);
+export function validateCoreArgv(args) {
+  const serialized = JSON.stringify(args);
+  const exact = new Set([
+    JSON.stringify(["scan", "--help"]),
+    JSON.stringify(["scan", "--json"]),
+    JSON.stringify(["models", "inventory", "--help"]),
+    JSON.stringify(["models", "inventory", "--json"]),
+    JSON.stringify(["diff", "--help"]),
+    JSON.stringify(["diff", "--latest", "--json"]),
+    JSON.stringify(["--version"]),
+  ]);
+  if (exact.has(serialized)) return;
+  if (
+    args.length === 4 &&
+    args[0] === "scan" &&
+    args[1] === "--json" &&
+    args[2] === "--category" &&
+    typeof args[3] === "string" &&
+    args[3].length > 0 &&
+    args[3].length <= 128
+  ) {
+    return;
   }
-  return value;
+  if (
+    args.length === 5 &&
+    args[0] === "models" &&
+    args[1] === "inventory" &&
+    args[2] === "--json" &&
+    args[3] === "--tool" &&
+    INVENTORY_TOOLS.includes(args[4])
+  ) {
+    return;
+  }
+  throw new CoreError("Core invocation is not on the I0.1 allowlist", { args });
 }
 
-export function runCore(args, { cwd = process.cwd(), timeoutMs = CORE_TIMEOUT_MS } = {}) {
+function errorDetails(stdout, stderr, args, captures = {}) {
+  const stdoutText = typeof stdout === "string" ? stdout : stdout?.text?.() || "";
+  const stderrText = typeof stderr === "string" ? stderr : stderr?.text?.() || "";
+  const stdoutTruncated = captures.stdout?.truncated || false;
+  const stderrTruncated = captures.stderr?.truncated || false;
+  return {
+    args,
+    stdout: stdoutText.slice(0, MAX_ERROR_EVIDENCE_CHARS),
+    stderr: stderrText.slice(0, MAX_ERROR_EVIDENCE_CHARS),
+    stdout_truncated: stdoutTruncated,
+    stderr_truncated: stderrTruncated,
+    truncated: stdoutTruncated || stderrTruncated,
+    stdout_bytes: captures.stdout?.totalBytes,
+    stderr_bytes: captures.stderr?.totalBytes,
+  };
+}
+
+function executeCore(args, {
+  command = coreCommand(),
+  cwd = process.cwd(),
+  timeoutMs = CORE_TIMEOUT_MS,
+  prefixArgs = [],
+} = {}) {
+  validateCoreArgv(args);
   validateReadOnlyArguments(Object.fromEntries(args.map((arg) => [arg, true])));
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(coreCommand(), args, {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, [...prefixArgs, ...args], {
       cwd,
       env: { ...process.env, CI: "1" },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
-    let stdout = "";
-    let stderr = "";
+    const stdout = new BoundedCapture(MAX_CORE_STDOUT_BYTES);
+    const stderr = new BoundedCapture(MAX_CORE_STDERR_BYTES);
+    let settled = false;
+    let outputLimitExceeded = false;
     const timer = setTimeout(() => {
       child.kill();
-      reject(new CoreError("AI Disk Doctor Core timed out", { args, timeoutMs }));
-    }, timeoutMs);
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(
-        new CoreError("AI Disk Doctor Core is unavailable", {
-          cause: error.message,
-          command: coreCommand(),
-        }),
-      );
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code !== 0) {
-        reject(
-          new CoreError("AI Disk Doctor Core returned an error", {
-            code,
-            args,
-            stderr: stderr.trim(),
-            stdout: stdout.trim(),
-          }),
-        );
-        return;
+      if (!settled) {
+        settled = true;
+        reject(new CoreError("AI Disk Doctor Core timed out", {
+          args,
+          timeoutMs,
+          ...errorDetails(stdout, stderr, args, { stdout, stderr }),
+        }));
       }
-      try {
-        resolvePromise(parseCoreJson(stdout, { args, stderr }));
-      } catch (error) {
+    }, timeoutMs);
+
+    const rejectOnce = (error) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
         reject(error);
       }
+    };
+
+    stdout.onExceeded = () => {
+      outputLimitExceeded = true;
+      child.kill();
+    };
+    stderr.onExceeded = () => {
+      outputLimitExceeded = true;
+      child.kill();
+    };
+    child.stdout.on("data", (chunk) => {
+      stdout.append(chunk);
+      if (stdout.truncated) stdout.onExceeded();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr.append(chunk);
+      if (stderr.truncated) stderr.onExceeded();
+    });
+    child.on("error", (error) => {
+      rejectOnce(new CoreError("AI Disk Doctor Core is unavailable", {
+        command,
+        cause: error.message,
+      }));
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      clearTimeout(timer);
+      if (outputLimitExceeded) {
+        rejectOnce(new CoreError("AI Disk Doctor Core output exceeded the capture limit", {
+          ...errorDetails(stdout, stderr, args, { stdout, stderr }),
+          output_limit_bytes: {
+            stdout: MAX_CORE_STDOUT_BYTES,
+            stderr: MAX_CORE_STDERR_BYTES,
+          },
+        }));
+        return;
+      }
+      const result = {
+        code,
+        stdout: stdout.text(),
+        stderr: stderr.text(),
+        captures: { stdout, stderr },
+      };
+      if (code !== 0) {
+        rejectOnce(new CoreError("AI Disk Doctor Core returned an error", {
+          code,
+          ...errorDetails(stdout, stderr, args, { stdout, stderr }),
+        }));
+        return;
+      }
+      settled = true;
+      resolve(result);
     });
   });
 }
 
-export function parseCoreJson(stdout, { args = [], stderr = "" } = {}) {
+export function runCore(args, options = {}) {
+  return executeCore(args, options).then(({ stdout, stderr, captures }) =>
+    parseCoreJson(stdout, { args, stderr, captures }));
+}
+
+export function runCoreText(args, options = {}) {
+  return executeCore(args, options).then(({ stdout }) => stdout);
+}
+
+export function parseCoreJson(stdout, { args = [], stderr = "", captures = {} } = {}) {
   try {
     return JSON.parse(stdout.replace(/^\uFEFF/, ""));
   } catch (error) {
     throw new CoreError("AI Disk Doctor Core returned malformed JSON", {
-      args,
       cause: error.message,
-      stdout: stdout.slice(0, 2000),
-      stderr: stderr.trim(),
+      ...errorDetails(stdout, stderr, args, captures),
     });
   }
 }
 
-export function runCoreText(args, { cwd = process.cwd(), timeoutMs = CORE_TIMEOUT_MS } = {}) {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(coreCommand(), args, {
-      cwd,
-      env: { ...process.env, CI: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill();
-      reject(new CoreError("AI Disk Doctor Core timed out", { args, timeoutMs }));
-    }, timeoutMs);
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(new CoreError("AI Disk Doctor Core is unavailable", {
-        cause: error.message,
-        command: coreCommand(),
-      }));
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code !== 0) {
-        reject(new CoreError("AI Disk Doctor Core returned an error", {
-          code,
-          args,
-          stderr: stderr.trim(),
-          stdout: stdout.trim(),
-        }));
-        return;
-      }
-      resolvePromise(stdout);
-    });
-  });
+function parseVersion(text) {
+  return text.match(/\b(\d+\.\d+\.\d+(?:[-+][\w.-]+)?)\b/)?.[1] || null;
 }
 
 export async function coreStatus() {
+  const core = {
+    command: coreCommand(),
+    expected_version: TESTED_CORE_VERSION,
+    detected_version: null,
+    tested_revision: TESTED_CORE_REVISION,
+    revision_verification: "not-runtime-verifiable",
+    version_verification: "not-runtime-verifiable",
+    command_surface: {},
+    capabilities: [],
+    available: false,
+    compatibility_status: "unavailable",
+  };
   const status = {
     ok: false,
     server: {
@@ -173,101 +283,83 @@ export async function coreStatus() {
       transport: "stdio",
       mode: "read-only",
     },
-    core: {
-      command: coreCommand(),
-      expected_version: TESTED_CORE_VERSION,
-      tested_revision: TESTED_CORE_REVISION,
-      detected_version: null,
-      compatible: false,
-      available: false,
-      capabilities: [],
-    },
+    core,
   };
+
   try {
-    const help = await runCoreText(["--help"]);
-    status.core.available = true;
-    status.core.capabilities = ["scan", "models", "diff"].filter((command) =>
-      String(help).includes(command),
-    );
-    status.core.compatible = status.core.capabilities.length === 3;
+    for (const [command, ...args] of CORE_COMMAND_SURFACE) {
+      try {
+        await runCoreText(args.length ? [command, ...args] : [command]);
+        core.command_surface[command] = "available";
+        core.capabilities.push(command);
+      } catch (error) {
+        core.command_surface[command] = "unavailable";
+        core.command_surface[`${command}_error`] = {
+          message: error.message,
+          details: error.details || {},
+        };
+      }
+    }
+    core.available = core.capabilities.length > 0;
     try {
       const versionOutput = await runCoreText(["--version"]);
-      const detected = versionOutput.match(/\b(\d+\.\d+\.\d+(?:[-+][\w.-]+)?)\b/)?.[1] || null;
-      status.core.detected_version = detected;
-      status.core.version_verification = detected ? "reported" : "unparseable";
-      if (detected && detected !== TESTED_CORE_VERSION) {
-        status.core.compatible = false;
-      }
+      core.detected_version = parseVersion(versionOutput);
+      core.version_verification = core.detected_version ? "reported" : "unparseable";
     } catch {
-      status.core.version_verification = "unsupported-by-core";
+      core.version_verification = "unsupported-by-core";
     }
-    status.core.status = status.core.compatible ? "compatible" : "incompatible";
-    status.ok = status.core.compatible;
+    if (!core.available) {
+      core.compatibility_status = "unavailable";
+    } else if (core.detected_version && core.detected_version !== TESTED_CORE_VERSION) {
+      core.compatibility_status = "incompatible";
+    } else if (core.capabilities.length === CORE_COMMAND_SURFACE.length) {
+      core.compatibility_status = "compatible-unverified";
+    } else {
+      core.compatibility_status = "incompatible";
+    }
+    status.ok = ["tested", "compatible-unverified"].includes(core.compatibility_status);
   } catch (error) {
-    status.core.status = "unavailable";
-    status.core.error = error.message;
-    status.core.error_details = error.details;
+    core.error = error.message;
+    core.error_details = error.details || {};
+    core.compatibility_status = "unavailable";
+    status.ok = false;
   }
   return status;
 }
 
 function coreArgsForScan(args) {
-  validateKnownArguments(args, ["category", "rules_dir", "policy"]);
+  validateKnownArguments(args, ["category"]);
   validateReadOnlyArguments(args);
   const result = ["scan", "--json"];
-  const category = typeof args.category === "string" && args.category.trim() ? args.category : undefined;
-  if (args.category !== undefined && !category) {
-    throw new CoreError("category must be a non-empty string");
+  if (args.category !== undefined) {
+    if (typeof args.category !== "string" || !args.category.trim() || args.category.length > 128) {
+      throw new CoreError("category must be a non-empty string of at most 128 characters");
+    }
+    if (args.category.includes("\0") || [...args.category].some((char) => char.charCodeAt(0) < 0x20)) {
+      throw new CoreError("category contains unsupported control characters");
+    }
+    result.push("--category", args.category.trim());
   }
-  const rulesDir = validatePathArgument(args.rules_dir, "rules_dir");
-  const policy = validatePathArgument(args.policy, "policy");
-  if (category) result.push("--category", category);
-  if (rulesDir) result.push("--rules-dir", rulesDir);
-  if (policy) result.push("--policy", policy);
   return result;
 }
 
-export function scanSummary(args = {}) {
-  return runCore(coreArgsForScan(args));
+export function scanSummary(args = {}, options = {}) {
+  return runCore(coreArgsForScan(args), options);
 }
 
-export function modelInventory(args = {}) {
-  validateKnownArguments(args, ["tool", "root", "max_depth", "stale_after_days"]);
+export function modelInventory(args = {}, options = {}) {
+  validateKnownArguments(args, ["tool"]);
   validateReadOnlyArguments(args);
   const result = ["models", "inventory", "--json"];
-  const tool = args.tool || "auto";
-  if (!["auto", "ollama", "huggingface", "lm-studio", "generic"].includes(tool)) {
-    throw new CoreError("tool must be auto, ollama, huggingface, lm-studio, or generic");
+  if (args.tool !== undefined) {
+    if (!INVENTORY_TOOLS.includes(args.tool)) {
+      throw new CoreError("tool must be auto, ollama, huggingface, lm-studio, or generic");
+    }
+    result.push("--tool", args.tool);
   }
-  result.push("--tool", tool);
-  const root = validatePathArgument(args.root, "root");
-  if (root) result.push("--root", root);
-  if (args.max_depth !== undefined) result.push("--max-depth", String(args.max_depth));
-  if (args.stale_after_days !== undefined) {
-    result.push("--stale-after-days", String(args.stale_after_days));
-  }
-  return runCore(result);
+  return runCore(result, options);
 }
 
-export function scanHistory(args = {}) {
-  validateKnownArguments(args, ["reports_dir"]);
-  validateReadOnlyArguments(args);
-  const reportsDir = resolve(
-    validatePathArgument(args.reports_dir, "reports_dir") || join(process.cwd(), ".aidisk", "reports"),
-  );
-  if (!existsSync(reportsDir)) {
-    return { reports_dir: reportsDir, snapshots: [], latest_snapshot: null, latest_pair: null };
-  }
-  const snapshots = readdirSync(reportsDir)
-    .filter((fileName) => fileName.startsWith("scan-") && fileName.endsWith(".json"))
-    .sort()
-    .map((fileName) => ({ path: join(reportsDir, fileName), file_name: fileName }));
-  const latestSnapshot = snapshots.at(-1) || null;
-  const before = snapshots.at(-2) || null;
-  return {
-    reports_dir: reportsDir,
-    snapshots,
-    latest_snapshot: latestSnapshot,
-    latest_pair: before && latestSnapshot ? { before, after: latestSnapshot } : null,
-  };
+export function latestDiff(options = {}) {
+  return runCore(["diff", "--latest", "--json"], options);
 }
