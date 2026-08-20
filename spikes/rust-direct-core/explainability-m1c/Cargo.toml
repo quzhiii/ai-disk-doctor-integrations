@@ -1,0 +1,15 @@
+[package]
+name = "aidisk-rust-explainability-m1c-spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+aidisk = { git = "https://github.com/quzhiii/ai-disk-doctor.git", rev = "33d741130b9c2bdd386cb96a25e0f7c70dd1bce7" }
+anyhow = "1"
+serde_json = "1"
+tempfile = "3"
+
+[[bin]]
+name = "rust-explainability-m1c-spike"
+path = "src/main.rs"
