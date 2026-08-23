@@ -125,6 +125,50 @@ const capabilitiesOutputSchema = {
   additionalProperties: false,
 };
 
+const workspaceExplainOutputSchema = {
+  type: "object",
+  required: [
+    "ok",
+    "tool",
+    "status",
+    "category",
+    "storage_summary",
+    "evidence_status",
+    "handling_recommendation",
+    "error",
+  ],
+  properties: {
+    ok: { const: false },
+    tool: { const: "aidisk_workspace_explain" },
+    status: { enum: ["contract_unavailable", "not_implemented"] },
+    category: { type: ["string", "null"], maxLength: 128 },
+    storage_summary: { type: ["object", "null"], additionalProperties: false },
+    evidence_status: { type: ["object", "null"], additionalProperties: false },
+    handling_recommendation: { type: ["string", "null"], maxLength: 128 },
+    error: {
+      type: "object",
+      required: ["type", "message", "details"],
+      properties: {
+        type: { enum: ["compatibility-error", "not-implemented"] },
+        message: { type: "string", maxLength: 512 },
+        details: {
+          type: "object",
+          required: ["contract", "schema_version"],
+          properties: {
+            contract: { const: "explainability-v1" },
+            schema_version: { const: 1 },
+            reasons: { type: "array", maxItems: 8, items: { type: "string", maxLength: 512 } },
+            required: { type: "object", additionalProperties: { type: "boolean" } },
+          },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  additionalProperties: false,
+};
+
 const boundedScanOutputSchema = {
   type: "object",
   required: [
@@ -233,6 +277,30 @@ export const TOOL_DEFINITIONS = [
       "Discover the local AI Disk Doctor machine-readable capability contract and report whether the future explainability gate is compatible. This performs no scan and does not modify files.",
     inputSchema: { ...objectSchema, properties: {} },
     outputSchema: capabilitiesOutputSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: "aidisk_workspace_explain",
+    title: "AI Disk Doctor Workspace Explanation",
+    description:
+      "Proposed explainability boundary for AI workspace storage. I1.2 validates Core capability compatibility but does not execute Core explainability.",
+    inputSchema: {
+      ...objectSchema,
+      properties: {
+        category: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Optional Core explainability category selector.",
+        },
+      },
+    },
+    outputSchema: workspaceExplainOutputSchema,
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,

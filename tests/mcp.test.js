@@ -9,6 +9,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 import { aidiskCapabilities } from "../mcp/tools/aidisk-capabilities.js";
+import { aidiskWorkspaceExplain } from "../mcp/tools/aidisk-workspace-explain.js";
 import { projectCapabilities, projectCapabilitiesError } from "../mcp/projection/capabilities.js";
 import { validateExplainabilityCompatibility } from "../mcp/server/compatibility.js";
 import { TOOL_DEFINITIONS } from "../src/schemas.js";
@@ -83,12 +84,20 @@ function diffFixture() {
 }
 
 test("tool registry exposes only the hardened I0.1 non-destructive surface", () => {
-  assert.deepEqual(toolNames(), ["aidisk_capabilities", "core_status", "scan_summary", "ai_model_inventory", "latest_diff"]);
+  assert.deepEqual(toolNames(), [
+    "aidisk_capabilities",
+    "aidisk_workspace_explain",
+    "core_status",
+    "scan_summary",
+    "ai_model_inventory",
+    "latest_diff",
+  ]);
   for (const tool of TOOL_DEFINITIONS) {
     assert.equal(tool.annotations.destructiveHint, false);
     assert.doesNotMatch(tool.name, /clean|delete|quarantine|restore|shell/);
   }
   assert.equal(TOOL_DEFINITIONS.find((tool) => tool.name === "aidisk_capabilities").annotations.readOnlyHint, true);
+  assert.equal(TOOL_DEFINITIONS.find((tool) => tool.name === "aidisk_workspace_explain").annotations.readOnlyHint, true);
   assert.equal(TOOL_DEFINITIONS.find((tool) => tool.name === "scan_summary").annotations.readOnlyHint, false);
 });
 
@@ -136,6 +145,78 @@ console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
   assert.equal(result.contracts[0].name, "explainability-v1");
   assert.equal(result.integration_status.compatible, true);
   assert.deepEqual(result.provenance.command, ["capabilities", "--json"]);
+});
+
+test("aidisk_workspace_explain accepts a valid category and does not execute explain", async () => {
+  const calls = [];
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+if (args.includes('explain')) process.exit(3);
+`);
+  const result = await aidiskWorkspaceExplain(
+    { category: "ai-agents" },
+    { command: process.execPath, prefixArgs: [script] },
+  );
+  calls.push(result);
+  assert.equal(calls[0].ok, false);
+  assert.equal(calls[0].status, "not_implemented");
+  assert.equal(calls[0].category, "ai-agents");
+  assert.equal(calls[0].error.type, "not-implemented");
+});
+
+test("aidisk_workspace_explain rejects forbidden root and policy fields", async () => {
+  for (const args of [{ root: "/tmp" }, { policy: "policy.yaml" }]) {
+    await assert.rejects(
+      () => aidiskWorkspaceExplain(args),
+      /not supported|non-destructive diagnostic/,
+    );
+  }
+});
+
+test("aidisk_workspace_explain returns a structured unsupported-contract response", async () => {
+  const script = await fakeCoreScript(`
+console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture({
+  capabilities: {
+    explainability: {
+      contract: "explainability-v2",
+      schema_versions: [2],
+      cli_available: true,
+      snapshot_modes: ["save"],
+      bounded_path_groups: false,
+    },
+  },
+}))}));
+`);
+  const result = await aidiskWorkspaceExplain(
+    { category: "ai-agents" },
+    { command: process.execPath, prefixArgs: [script] },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "contract_unavailable");
+  assert.equal(result.category, "ai-agents");
+  assert.equal(result.error.type, "compatibility-error");
+});
+
+test("aidisk_workspace_explain output is bounded and excludes raw metadata", async () => {
+  const script = await fakeCoreScript(`console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));`);
+  const result = await aidiskWorkspaceExplain({}, { command: process.execPath, prefixArgs: [script] });
+  const schema = new Ajv({ strict: false }).compile(
+    TOOL_DEFINITIONS.find((tool) => tool.name === "aidisk_workspace_explain").outputSchema,
+  );
+  assert.equal(schema(result), true);
+  assert.deepEqual(Object.keys(result).sort(), [
+    "category",
+    "error",
+    "evidence_status",
+    "handling_recommendation",
+    "ok",
+    "status",
+    "storage_summary",
+    "tool",
+  ]);
+  assert.equal(Object.hasOwn(result, "raw"), false);
+  assert.equal(Object.hasOwn(result, "debug"), false);
 });
 
 test("aidisk_capabilities reports Core unavailable without fallback", async () => {
