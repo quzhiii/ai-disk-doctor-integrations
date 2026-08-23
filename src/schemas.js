@@ -1,4 +1,4 @@
-export const CORE_COMMANDS = ["scan", "models", "diff"];
+export const CORE_COMMANDS = ["capabilities", "scan", "models", "diff"];
 
 const objectSchema = {
   type: "object",

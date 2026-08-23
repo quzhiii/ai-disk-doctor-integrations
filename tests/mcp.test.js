@@ -126,6 +126,10 @@ if (JSON.stringify(args) !== JSON.stringify(['capabilities','--json'])) process.
 console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
 `);
   const result = await aidiskCapabilities({}, { command: process.execPath, prefixArgs: [script] });
+  const schema = new Ajv({ strict: false }).compile(
+    TOOL_DEFINITIONS.find((tool) => tool.name === "aidisk_capabilities").outputSchema,
+  );
+  assert.equal(schema(result), true);
   assert.equal(result.ok, true);
   assert.equal(result.tool, "aidisk_capabilities");
   assert.equal(result.core_version, "1.7.0");
