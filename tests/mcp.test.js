@@ -8,6 +8,9 @@ import Ajv from "ajv";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
+import { aidiskCapabilities } from "../mcp/tools/aidisk-capabilities.js";
+import { projectCapabilities, projectCapabilitiesError } from "../mcp/projection/capabilities.js";
+import { validateExplainabilityCompatibility } from "../mcp/server/compatibility.js";
 import { TOOL_DEFINITIONS } from "../src/schemas.js";
 import {
   MAX_ERROR_EVIDENCE_CHARS,
@@ -40,6 +43,26 @@ import {
 
 const toolNames = () => TOOL_DEFINITIONS.map((tool) => tool.name);
 
+function capabilitiesFixture(overrides = {}) {
+  return {
+    ok: true,
+    command: "capabilities",
+    contract: "agent-capabilities-v1",
+    schema_version: 1,
+    core_version: "1.7.0",
+    capabilities: {
+      explainability: {
+        contract: "explainability-v1",
+        schema_versions: [1],
+        cli_available: true,
+        snapshot_modes: ["save", "skip"],
+        bounded_path_groups: true,
+      },
+    },
+    ...overrides,
+  };
+}
+
 async function fakeCoreScript(body) {
   const dir = await mkdtemp(join(tmpdir(), "aidisk-fake-core-"));
   const script = join(dir, "fake-core.mjs");
@@ -60,11 +83,12 @@ function diffFixture() {
 }
 
 test("tool registry exposes only the hardened I0.1 non-destructive surface", () => {
-  assert.deepEqual(toolNames(), ["core_status", "scan_summary", "ai_model_inventory", "latest_diff"]);
+  assert.deepEqual(toolNames(), ["aidisk_capabilities", "core_status", "scan_summary", "ai_model_inventory", "latest_diff"]);
   for (const tool of TOOL_DEFINITIONS) {
     assert.equal(tool.annotations.destructiveHint, false);
     assert.doesNotMatch(tool.name, /clean|delete|quarantine|restore|shell/);
   }
+  assert.equal(TOOL_DEFINITIONS.find((tool) => tool.name === "aidisk_capabilities").annotations.readOnlyHint, true);
   assert.equal(TOOL_DEFINITIONS.find((tool) => tool.name === "scan_summary").annotations.readOnlyHint, false);
 });
 
@@ -85,14 +109,87 @@ test("tool input and output schemas compile and validate structured output", asy
     assert.doesNotThrow(() => ajv.compile(tool.inputSchema));
     assert.doesNotThrow(() => ajv.compile(tool.outputSchema));
   }
-  const statusSchema = ajv.compile(TOOL_DEFINITIONS[0].outputSchema);
+  const statusSchema = ajv.compile(TOOL_DEFINITIONS.find((tool) => tool.name === "core_status").outputSchema);
   assert.equal(statusSchema(await coreStatusTool()), true, ajv.errorsText(statusSchema.errors));
-  const latestDiffSchema = ajv.compile(TOOL_DEFINITIONS[3].outputSchema);
+  const latestDiffSchema = ajv.compile(TOOL_DEFINITIONS.find((tool) => tool.name === "latest_diff").outputSchema);
   assert.equal(
     latestDiffSchema(projectLatestDiff({ report: diffFixture(), argv: ["diff", "--latest", "--json"] })),
     true,
     ajv.errorsText(latestDiffSchema.errors),
   );
+});
+
+test("aidisk_capabilities returns a bounded compatible projection", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) !== JSON.stringify(['capabilities','--json'])) process.exit(2);
+console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+`);
+  const result = await aidiskCapabilities({}, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.ok, true);
+  assert.equal(result.tool, "aidisk_capabilities");
+  assert.equal(result.core_version, "1.7.0");
+  assert.equal(result.contracts[0].name, "explainability-v1");
+  assert.equal(result.integration_status.compatible, true);
+  assert.deepEqual(result.provenance.command, ["capabilities", "--json"]);
+});
+
+test("aidisk_capabilities reports Core unavailable without fallback", async () => {
+  const result = await aidiskCapabilities({}, { command: "definitely-not-aidisk-executable" });
+  assert.equal(result.ok, false);
+  assert.equal(result.integration_status.status, "unavailable");
+  assert.equal(result.error.type, "core-capabilities-error");
+  assert.deepEqual(result.provenance.command, ["capabilities", "--json"]);
+});
+
+test("aidisk_capabilities reports malformed Core response as a bounded error", async () => {
+  const script = await fakeCoreScript("console.log('not-json');");
+  const result = await aidiskCapabilities({}, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.ok, false);
+  assert.equal(result.integration_status.status, "malformed");
+  assert.equal(result.error.type, "core-capabilities-error");
+  assert.equal(result.error.details.command.join(" "), "capabilities --json");
+});
+
+test("unsupported explainability contract fails the compatibility gate", async () => {
+  const report = capabilitiesFixture({
+    capabilities: {
+      explainability: {
+        contract: "explainability-v2",
+        schema_versions: [2],
+        cli_available: true,
+        snapshot_modes: ["save"],
+        bounded_path_groups: true,
+      },
+    },
+  });
+  const script = await fakeCoreScript(`console.log(JSON.stringify(${JSON.stringify(report)}));`);
+  const result = await aidiskCapabilities({}, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.ok, false);
+  assert.equal(result.integration_status.status, "incompatible");
+  assert.equal(result.error.type, "compatibility-error");
+  assert.match(result.error.message, /compatibility gate/);
+});
+
+test("capability projection bounds contract summaries and never echoes raw output", () => {
+  const capabilities = Object.fromEntries(Array.from({ length: 20 }, (_, index) => [
+    `contract-${index}`,
+    { contract: `contract-${index}`, schema_versions: [1], cli_available: true, snapshot_modes: ["save"], bounded_path_groups: false },
+  ]));
+  const result = projectCapabilities({ report: capabilitiesFixture({ capabilities }), argv: ["capabilities", "--json"] });
+  assert.equal(result.contracts.length, 16);
+  assert.equal(result.truncated, true);
+  assert.equal(Object.hasOwn(result, "raw"), false);
+  const error = projectCapabilitiesError(new Error("raw stdout should not be returned"));
+  assert.equal(Object.hasOwn(error, "raw"), false);
+});
+
+test("compatibility gate requires machine-readable contract evidence", () => {
+  const result = validateExplainabilityCompatibility(capabilitiesFixture());
+  assert.equal(result.compatible, true);
+  const unsupported = validateExplainabilityCompatibility(capabilitiesFixture({ contract: "other-contract" }));
+  assert.equal(unsupported.compatible, false);
+  assert.equal(unsupported.required.capabilities_command, false);
 });
 
 test("missing Core status is unavailable and reports non-destructive diagnostic mode", async () => {

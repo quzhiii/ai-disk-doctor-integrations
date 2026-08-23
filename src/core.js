@@ -102,6 +102,7 @@ export function validateCoreArgv(args) {
     JSON.stringify(["models", "inventory", "--json"]),
     JSON.stringify(["diff", "--help"]),
     JSON.stringify(["diff", "--latest", "--json"]),
+    JSON.stringify(["capabilities", "--json"]),
     JSON.stringify(["--version"]),
   ]);
   if (exact.has(serialized)) return;

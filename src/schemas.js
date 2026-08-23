@@ -66,6 +66,65 @@ const coreStatusOutputSchema = {
   additionalProperties: false,
 };
 
+const capabilityContractSchema = {
+  type: "object",
+  required: ["name", "supported", "schema_versions", "cli_available", "snapshot_modes", "bounded_path_groups"],
+  properties: {
+    name: { type: "string", maxLength: 128 },
+    supported: { type: "boolean" },
+    schema_versions: { type: "array", maxItems: 8, items: { type: "integer" } },
+    cli_available: { type: "boolean" },
+    snapshot_modes: { type: "array", maxItems: 4, items: { type: "string", maxLength: 128 } },
+    bounded_path_groups: { type: "boolean" },
+  },
+  additionalProperties: false,
+};
+
+const capabilitiesOutputSchema = {
+  type: "object",
+  required: ["ok", "tool", "core_version", "contracts", "truncated", "provenance", "integration_status"],
+  properties: {
+    ok: { type: "boolean" },
+    tool: { const: "aidisk_capabilities" },
+    core_version: { type: ["string", "null"], maxLength: 64 },
+    contracts: { type: "array", maxItems: 16, items: capabilityContractSchema },
+    truncated: { type: "boolean" },
+    provenance: {
+      type: "object",
+      required: ["source", "command", "core_contract", "schema_version"],
+      properties: {
+        source: { const: "ai-disk-doctor-core-cli" },
+        command: { const: ["capabilities", "--json"] },
+        core_contract: { const: "agent-capabilities-v1" },
+        schema_version: { type: ["integer", "null"] },
+      },
+      additionalProperties: false,
+    },
+    integration_status: {
+      type: "object",
+      required: ["compatible", "status", "required"],
+      properties: {
+        compatible: { type: "boolean" },
+        status: { type: "string", maxLength: 64 },
+        required: { type: "object", additionalProperties: { type: "boolean" } },
+        reasons: { type: "array", maxItems: 16, items: { type: "string", maxLength: 512 } },
+      },
+      additionalProperties: false,
+    },
+    error: {
+      type: "object",
+      required: ["type", "message", "details"],
+      properties: {
+        type: { type: "string", maxLength: 128 },
+        message: { type: "string", maxLength: 512 },
+        details: { type: "object", additionalProperties: true },
+      },
+      additionalProperties: false,
+    },
+  },
+  additionalProperties: false,
+};
+
 const boundedScanOutputSchema = {
   type: "object",
   required: [
@@ -167,6 +226,20 @@ const boundedDiffOutputSchema = {
 };
 
 export const TOOL_DEFINITIONS = [
+  {
+    name: "aidisk_capabilities",
+    title: "AI Disk Doctor Capabilities",
+    description:
+      "Discover the local AI Disk Doctor machine-readable capability contract and report whether the future explainability gate is compatible. This performs no scan and does not modify files.",
+    inputSchema: { ...objectSchema, properties: {} },
+    outputSchema: capabilitiesOutputSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
   {
     name: "core_status",
     title: "AI Disk Doctor Core Status",
