@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: quzhiii/ai-disk-doctor
-           ref: cac502f73c39f1b5de13bab3e4de86a5c29684fc
+          ref: cac502f73c39f1b5de13bab3e4de86a5c29684fc
           path: pinned-core
       - uses: actions/setup-node@v4
         with:
