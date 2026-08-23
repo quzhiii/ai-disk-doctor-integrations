@@ -2,7 +2,7 @@
 name: ai-disk-doctor
 description: Diagnose AI and developer workspace storage with AI Disk Doctor's local Core. Use when asking why a disk is full, which AI tools or model caches consume space, what changed recently, what Core evidence supports a classification, or what should be reviewed safely.
 license: MIT OR Apache-2.0
-compatibility: Tested against AI Disk Doctor Core v1.7.0. Runtime compatibility is checked by core_status. Requires an MCP-compatible Agent client; scan_summary may persist a Core-owned snapshot.
+compatibility: Tested against AI Disk Doctor Core v1.7.0 at the I1.1 capability-contract baseline. Runtime compatibility is checked by core_status and aidisk_capabilities. Requires an MCP-compatible Agent client; scan_summary may persist a Core-owned snapshot.
 metadata:
   integration: ai-disk-doctor-integrations
   safety: non-destructive-diagnostic-alpha
@@ -24,11 +24,12 @@ Use this Skill for questions such as:
 
 ## I0 Workflow
 
-1. Call `core_status` first when the Core may be missing or the environment is unfamiliar.
-2. Call `scan_summary` for current storage evidence. Use `category` only when the user asks for a focused area; do not provide rules, policy, root, reports, or executable paths.
-3. Call `ai_model_inventory` for model and cache questions. Only use the optional `tool` selector. Treat unknown, incomplete, custom, shared, or credential-adjacent assets conservatively.
-4. Call `latest_diff` when the user asks what changed recently. Core owns snapshot discovery and diff semantics.
-5. Explain findings with evidence returned by Core: path, existence, size, rule/category, risk, action, reason, warnings, partial, and partial reasons when present.
+1. Call `aidisk_capabilities` when evaluating whether a future Core explainability contract is available; it accepts no arguments and does not replace `core_status`.
+2. Call `core_status` first when the Core may be missing or the environment is unfamiliar.
+3. Call `scan_summary` for current storage evidence. Use `category` only when the user asks for a focused area; do not provide rules, policy, root, reports, or executable paths.
+4. Call `ai_model_inventory` for model and cache questions. Only use the optional `tool` selector. Treat unknown, incomplete, custom, shared, or credential-adjacent assets conservatively.
+5. Call `latest_diff` when the user asks what changed recently. Core owns snapshot discovery and diff semantics.
+6. Explain findings with evidence returned by Core: path, existence, size, rule/category, risk, action, reason, warnings, partial, and partial reasons when present.
 
 ## Safety Rules
 

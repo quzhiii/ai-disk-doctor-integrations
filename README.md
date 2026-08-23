@@ -6,20 +6,21 @@ This repository is an integration and distribution layer. It does not implement 
 
 ## Alpha Scope
 
-The MCP server exposes four tools:
+The MCP server exposes five tools:
 
 | Tool | Behavior | Model-facing inputs | Core side effect |
 |---|---|---|---|
+| `aidisk_capabilities` | Discover Core's machine-readable capability contract and evaluate the explainability readiness gate | None | None |
 | `core_status` | Check Core availability, required command surface, and compatibility provenance | None | None |
 | `scan_summary` | Run `aidisk scan --json` and return bounded Core evidence | `category?` | Current Core CLI may save `.aidisk/reports/scan-*.json` |
 | `ai_model_inventory` | Run `aidisk models inventory --json` with Core defaults and return bounded assets | `tool?` | None intended |
 | `latest_diff` | Run Core-owned `aidisk diff --latest --json` and return bounded changes | None | None |
 
-I0.1 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, arbitrary filesystem mutation tool, or explainability MCP tool.
+I1.1 still exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, arbitrary filesystem mutation tool, or `explain_storage` MCP tool.
 
 ### Core state used by I0.1
 
-- Tested Core baseline: v1.7.0 at `52f31509394d2165cba8908da00a1036ba90479d`.
+- Tested Core baseline: v1.7.0 at `cac502f73c39f1b5de13bab3e4de86a5c29684fc`.
 - Latest merged Public Core reviewed during I0.1: `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, which merged M1C `explainability-v1`.
 - M1C is **not consumed by I0.1**. The current explainability contract is exposed through the Rust application boundary, while the Core CLI has no explainability CLI contract for this integration to call.
 
@@ -29,7 +30,7 @@ I0.1 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arb
 
 - Node.js 18 or newer.
 - AI Disk Doctor Core v1.7.0 on `PATH` as `aidisk`/`aidisk.exe`, or set `AIDISK_EXE`.
-- This integration is tested against Core revision `52f31509394d2165cba8908da00a1036ba90479d`. Runtime compatibility is checked by `core_status`; current Core binaries do not expose a runtime git revision, so the exact revision is not claimed from runtime detection.
+- This integration is tested against Core revision `cac502f73c39f1b5de13bab3e4de86a5c29684fc`. Runtime compatibility is checked by `core_status` and the machine-readable `aidisk capabilities --json` contract; current Core binaries do not expose a runtime git revision, so the exact revision is not claimed from runtime detection.
 
 Install from a checkout:
 
@@ -98,11 +99,13 @@ TRAE MCP and Skill docs exist, but exact project packaging is deferred until a T
 - MCP transport is local stdio only.
 - `core_status.server.mode` is `non-destructive-diagnostic`: the server exposes no destructive action, but `scan_summary` can cause Core-owned snapshot persistence.
 - The server starts only the configured `aidisk` executable with fixed allowlisted argv.
+- `aidisk_capabilities` accepts no model-facing input and invokes only the fixed `aidisk capabilities --json` argv.
 - Model-facing inputs are limited to `scan_summary.category` and `ai_model_inventory.tool`.
 - No model-facing rules, policy, root, reports directory, executable, shell, cleanup, quarantine, restore, or delete parameter exists.
 - `scan_summary` is non-destructive but `readOnlyHint: false` because current Core CLI scan persists a Core-owned snapshot. It is `destructiveHint: false` and does not modify user/workspace files.
 - Output is bounded: scan findings, model assets, diff changes, Core stdout/stderr capture, error evidence, and MCP text content all have hard limits.
 - Model inventory is metadata-only according to the Core contract; this integration does not read prompt, transcript, source, document, token, cookie, credential, or model binary contents.
+- `aidisk_capabilities` does not parse human help text or infer support from version numbers. Missing, malformed, or unsupported capability contracts fail closed.
 
 Agents must never bypass these rules by deleting paths with shell commands. If a future mutation flow is approved, it must use a separate Desktop-mediated authorization surface.
 
@@ -126,4 +129,4 @@ The integration source is dual-licensed under MIT or Apache-2.0. See [`LICENSE-M
 
 ## Status
 
-I0.1 Alpha. This repository is not the commercial Desktop and contains no accounts, billing, entitlements, telemetry, cloud synchronization, or proprietary Desktop code.
+I1.1 Alpha runtime skeleton. This repository is not the commercial Desktop and contains no accounts, billing, entitlements, telemetry, cloud synchronization, or proprietary Desktop code.
