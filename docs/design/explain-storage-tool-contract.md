@@ -1,12 +1,12 @@
 # Explain Storage Tool Contract
 
-Status: PROPOSED ONLY. This is a future MCP contract draft and is not implemented or registered by the current Node MCP server.
+Status: Superseded by the implemented `aidisk_workspace_explain` runtime boundary in `i1-explain-storage-boundary.md`. This remains historical design context for a broader future tool.
 
 Date: 2026-08-21
 
 ## Purpose
 
-`explain_storage` is a proposed diagnostic MCP tool for explaining Core storage findings after Core releases a compatible explainability CLI contract. It must be a consumer of Core explainability output, not an Integration-owned explanation engine.
+`explain_storage` was a proposed diagnostic MCP tool for explaining Core storage findings. The current implementation is the narrower `aidisk_workspace_explain`, a consumer of Core explainability output rather than an Integration-owned explanation engine.
 
 ## Proposed Tool
 

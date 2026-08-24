@@ -1,9 +1,13 @@
-import { validateKnownArguments, validateReadOnlyArguments } from "../../src/core.js";
+import { explainInvocation } from "../../adapters/core/explain.js";
 import { aidiskCapabilities } from "./aidisk-capabilities.js";
+import { validateKnownArguments, validateReadOnlyArguments } from "../../src/core.js";
+import {
+  classifyWorkspaceExplainError,
+  projectWorkspaceExplain,
+  workspaceExplainError,
+} from "../projection/workspace-explain.js";
 
 const MAX_CATEGORY_LENGTH = 128;
-const MAX_ERROR_REASONS = 8;
-
 function validateCategory(category) {
   if (category === undefined) return null;
   if (typeof category !== "string" || !category.trim() || category.length > MAX_CATEGORY_LENGTH) {
@@ -26,13 +30,13 @@ function compatibilityError(category, capability) {
     evidence_status: null,
     handling_recommendation: null,
     error: {
-      type: "compatibility-error",
+      type: "contract_unavailable",
       message: "AI Disk Doctor explainability contract is unavailable or unsupported",
       details: {
         contract: "explainability-v1",
         schema_version: 1,
         reasons: Array.isArray(integrationStatus.reasons)
-          ? integrationStatus.reasons.slice(0, MAX_ERROR_REASONS)
+          ? integrationStatus.reasons.slice(0, 8)
           : ["Core capability handshake did not pass"],
         required: integrationStatus.required || {},
       },
@@ -46,24 +50,20 @@ export async function aidiskWorkspaceExplain(args = {}, options = {}) {
   const category = validateCategory(args.category);
   const capability = await aidiskCapabilities({}, options);
   if (capability.integration_status?.compatible !== true) {
+    if (capability.integration_status?.status === "unavailable") {
+      return workspaceExplainError("core_unavailable", "AI Disk Doctor Core is unavailable", category);
+    }
+    if (capability.integration_status?.status === "malformed") {
+      return workspaceExplainError("invalid_core_response", "Core capabilities response is invalid", category);
+    }
     return compatibilityError(category, capability);
   }
 
-  return {
-    ok: false,
-    tool: "aidisk_workspace_explain",
-    status: "not_implemented",
-    category,
-    storage_summary: null,
-    evidence_status: null,
-    handling_recommendation: null,
-    error: {
-      type: "not-implemented",
-      message: "Core explainability execution is intentionally disabled in I1.2",
-      details: {
-        contract: "explainability-v1",
-        schema_version: 1,
-      },
-    },
-  };
+  try {
+    const invocation = await explainInvocation(category === null ? {} : { category }, options);
+    return projectWorkspaceExplain({ report: invocation.report, category });
+  } catch (error) {
+    const type = classifyWorkspaceExplainError(error);
+    return workspaceExplainError(type, error.message, category);
+  }
 }

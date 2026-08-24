@@ -11,6 +11,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { aidiskCapabilities } from "../mcp/tools/aidisk-capabilities.js";
 import { aidiskWorkspaceExplain } from "../mcp/tools/aidisk-workspace-explain.js";
 import { projectCapabilities, projectCapabilitiesError } from "../mcp/projection/capabilities.js";
+import { projectWorkspaceExplain } from "../mcp/projection/workspace-explain.js";
 import { validateExplainabilityCompatibility } from "../mcp/server/compatibility.js";
 import { TOOL_DEFINITIONS } from "../src/schemas.js";
 import {
@@ -59,6 +60,55 @@ function capabilitiesFixture(overrides = {}) {
         snapshot_modes: ["save", "skip"],
         bounded_path_groups: true,
       },
+    },
+    ...overrides,
+  };
+}
+
+function explainFixture(overrides = {}) {
+  return {
+    ok: true,
+    command: "explain",
+    contract: "agent-diagnostic-cli-v1",
+    schema_version: 1,
+    core_version: "1.7.0",
+    snapshot: { requested: "skip", persisted: false, path: null },
+    explainability: {
+      contract: "explainability-v1",
+      schema_version: 1,
+      accounting: { byte_basis: "logical-rule-match-lower-bound" },
+      storage: {
+        observed_bytes: 100,
+        total_size_bytes: 120,
+        potential_bytes: 90,
+        actionable_bytes: 80,
+        quarantine_bytes: 40,
+        official_cleanup_bytes: 20,
+        report_only_bytes: 40,
+        partial_bytes: 20,
+        reclaimable_safe_bytes: 40,
+        safe_bytes: 40,
+        review_bytes: 40,
+        dangerous_bytes: 10,
+        system_bytes: 10,
+      },
+      evidence: {
+        status: "partial",
+        partial_findings: 1,
+        warnings: [{ code: "partial-lower-bound", message: "bounded evidence" }],
+      },
+      volumes: [],
+      categories: [{
+        category_id: "ai-agents",
+        category_name: "AI Agents",
+        handling: {
+          quarantine_bytes: 40,
+          official_cleanup_bytes: 20,
+          report_only_bytes: 40,
+          partial_bytes: 20,
+        },
+        rules: [{ rule_id: "cache-rule", rule_name: "Cache Rule", handling_mode: "quarantine" }],
+      }],
     },
     ...overrides,
   };
@@ -147,22 +197,46 @@ console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
   assert.deepEqual(result.provenance.command, ["capabilities", "--json"]);
 });
 
-test("aidisk_workspace_explain accepts a valid category and does not execute explain", async () => {
-  const calls = [];
+test("aidisk_workspace_explain projects a successful explain response with fixed argv", async () => {
   const script = await fakeCoreScript(`
 const args = process.argv.slice(2);
-console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
-if (args.includes('explain')) process.exit(3);
+if (JSON.stringify(args) === JSON.stringify(['capabilities','--json'])) {
+  console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+} else if (JSON.stringify(args) === JSON.stringify(['explain','--json','--snapshot','skip','--category','ai-agents'])) {
+  console.log(JSON.stringify(${JSON.stringify(explainFixture())}));
+} else {
+  process.exit(3);
+}
 `);
   const result = await aidiskWorkspaceExplain(
     { category: "ai-agents" },
     { command: process.execPath, prefixArgs: [script] },
   );
-  calls.push(result);
-  assert.equal(calls[0].ok, false);
-  assert.equal(calls[0].status, "not_implemented");
-  assert.equal(calls[0].category, "ai-agents");
-  assert.equal(calls[0].error.type, "not-implemented");
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "partial");
+  assert.equal(result.category, "ai-agents");
+  assert.equal(result.storage_summary.observed_bytes, 100);
+  assert.equal(result.evidence_status.partial_findings, 1);
+  assert.equal(result.handling_recommendation.categories[0].category_id, "ai-agents");
+  assert.equal(result.error, null);
+  assert.match(contentFor(result)[0].text, /total_size_bytes=120/);
+  assert.match(contentFor(result)[0].text, /evidence_status=partial/);
+});
+
+test("aidisk_workspace_explain uses the fixed no-category argv when no category is supplied", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) === JSON.stringify(['capabilities','--json'])) {
+  console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+} else if (JSON.stringify(args) === JSON.stringify(['explain','--json','--snapshot','skip'])) {
+  console.log(JSON.stringify(${JSON.stringify(explainFixture())}));
+} else {
+  process.exit(3);
+}
+`);
+  const result = await aidiskWorkspaceExplain({}, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.ok, true);
+  assert.equal(result.category, null);
 });
 
 test("aidisk_workspace_explain rejects forbidden root and policy fields", async () => {
@@ -195,28 +269,89 @@ console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture({
   assert.equal(result.ok, false);
   assert.equal(result.status, "contract_unavailable");
   assert.equal(result.category, "ai-agents");
-  assert.equal(result.error.type, "compatibility-error");
+  assert.equal(result.error.type, "contract_unavailable");
+});
+
+test("aidisk_workspace_explain reports Core unavailable", async () => {
+  const result = await aidiskWorkspaceExplain({}, { command: "definitely-not-aidisk-executable" });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "core_unavailable");
+  assert.equal(result.error.type, "core_unavailable");
+});
+
+test("aidisk_workspace_explain reports malformed explain response", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (args[0] === 'capabilities') console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+else console.log('not-json');
+`);
+  const result = await aidiskWorkspaceExplain({}, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "invalid_core_response");
+  assert.equal(result.error.type, "invalid_core_response");
+});
+
+test("aidisk_workspace_explain fails closed when Core violates the snapshot skip contract", async () => {
+  const report = explainFixture({ snapshot: { requested: "save", persisted: true, path: "scan.json" } });
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (args[0] === 'capabilities') console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+else console.log(JSON.stringify(${JSON.stringify(report)}));
+`);
+  const result = await aidiskWorkspaceExplain({}, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "contract_unavailable");
+  assert.equal(result.error.type, "contract_unavailable");
 });
 
 test("aidisk_workspace_explain output is bounded and excludes raw metadata", async () => {
-  const script = await fakeCoreScript(`console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));`);
+  const report = explainFixture({ raw: "secret", debug: { stdout: "secret" } });
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (args[0] === 'capabilities') console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+else console.log(JSON.stringify(${JSON.stringify(report)}));
+`);
   const result = await aidiskWorkspaceExplain({}, { command: process.execPath, prefixArgs: [script] });
   const schema = new Ajv({ strict: false }).compile(
     TOOL_DEFINITIONS.find((tool) => tool.name === "aidisk_workspace_explain").outputSchema,
   );
   assert.equal(schema(result), true);
-  assert.deepEqual(Object.keys(result).sort(), [
-    "category",
-    "error",
-    "evidence_status",
-    "handling_recommendation",
-    "ok",
-    "status",
-    "storage_summary",
-    "tool",
-  ]);
+  assert.deepEqual(Object.keys(result).sort(), ["category", "error", "evidence_status", "handling_recommendation", "ok", "status", "storage_summary", "tool"]);
   assert.equal(Object.hasOwn(result, "raw"), false);
   assert.equal(Object.hasOwn(result, "debug"), false);
+  assert.equal(JSON.stringify(result).includes("secret"), false);
+});
+
+test("workspace explain projection bounds warning, category, and rule output", () => {
+  const report = explainFixture();
+  report.explainability.evidence.warnings = Array.from({ length: 20 }, (_, index) => ({
+    code: `warning-${index}`,
+    message: "x".repeat(300),
+  }));
+  report.explainability.categories = Array.from({ length: 20 }, (_, categoryIndex) => ({
+    category_id: `category-${categoryIndex}`,
+    category_name: `Category ${categoryIndex}`,
+    handling: {
+      quarantine_bytes: 0,
+      official_cleanup_bytes: 0,
+      report_only_bytes: 0,
+      partial_bytes: 0,
+    },
+    rules: Array.from({ length: 40 }, (_, ruleIndex) => ({
+      rule_id: `rule-${ruleIndex}`,
+      rule_name: "n".repeat(300),
+      handling_mode: "report-only",
+    })),
+  }));
+  const result = projectWorkspaceExplain({ report });
+  assert.equal(result.evidence_status.warnings.length, 16);
+  assert.equal(result.evidence_status.truncated, true);
+  assert.equal(result.evidence_status.warnings[0].message.length, 256);
+  assert.equal(result.handling_recommendation.categories.length, 16);
+  assert.equal(result.handling_recommendation.truncated, true);
+  assert.equal(result.handling_recommendation.categories[0].rules.length, 32);
+  assert.equal(result.handling_recommendation.categories[0].truncated, true);
+  assert.equal(result.handling_recommendation.categories[0].rules[0].rule_name.length, 256);
 });
 
 test("aidisk_capabilities reports Core unavailable without fallback", async () => {
@@ -529,4 +664,16 @@ test("current Node CLI scan may create a Core-owned snapshot", async (t) => {
   await scanSummary({ category: "definitely-no-category" }, { cwd: workspace });
   const reports = await readdir(join(workspace, ".aidisk", "reports"));
   assert.equal(reports.some((name) => name.startsWith("scan-") && name.endsWith(".json")), true);
+});
+
+test("pinned Core explain smoke skips snapshot persistence", async (t) => {
+  if (!process.env.AIDISK_EXE) {
+    t.skip("set AIDISK_EXE to run the real Core explain smoke");
+    return;
+  }
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-explain-side-effect-"));
+  const result = await aidiskWorkspaceExplain({}, { cwd: workspace });
+  assert.equal(result.ok, true);
+  assert.ok(["complete", "partial"].includes(result.status));
+  await assert.rejects(() => readdir(join(workspace, ".aidisk", "reports")), /ENOENT/);
 });

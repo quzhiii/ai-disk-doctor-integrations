@@ -1,6 +1,6 @@
 # I1 Explain Storage Boundary
 
-Status: I1.2 contract preparation only. `aidisk_workspace_explain` is registered as a read-only MCP boundary, but Core explain execution is intentionally not implemented.
+Status: I1.3 runtime adapter implemented against the pinned Core `agent-diagnostic-cli-v1` and `explainability-v1` contracts.
 
 Date: 2026-08-24
 
@@ -23,16 +23,21 @@ Agent
   v
 MCP contract boundary
   |
-  | existing aidisk capabilities --json handshake only in I1.2
+  | fixed aidisk capabilities --json handshake
   v
 Compatibility result
   |
   +--> contract_unavailable error
   |
-  +--> not_implemented response
+  +--> fixed aidisk explain --json --snapshot skip invocation
+             |
+             +--> bounded Agent-facing projection
+             +--> structured Core/projection error
 ```
 
-I1.2 does not invoke `aidisk explain`. A compatible capability handshake returns `not_implemented` so the Agent can distinguish an approved boundary from an executable Core feature. An unavailable or unsupported contract returns `contract_unavailable` with bounded gate reasons.
+The handler first validates the machine-readable capability handshake. Only a compatible Core may reach the explain invocation. The runtime adapter executes exactly `aidisk explain --json --snapshot skip`, or that same fixed argv with the validated category selector appended. It does not pass arbitrary arguments or allow snapshot selection. Category semantics remain owned by Core.
+
+The explain response is validated before projection. The adapter requires the `agent-diagnostic-cli-v1` envelope, schema version `1`, `core_version`, the no-snapshot response (`requested: skip`, `persisted: false`, `path: null`), and the nested `explainability-v1` report with integer storage counters, evidence status, warnings, categories, handling totals, and rules. Unsupported or malformed Core output fails closed.
 
 ## Core Ownership
 
@@ -49,16 +54,16 @@ Integration must not recreate, rank, normalize, or override those semantics.
 
 ## Projection Responsibility
 
-The future Agent-facing output is intentionally narrow:
+The Agent-facing output is intentionally narrow:
 
 - explanation status;
 - requested category;
 - bounded storage summary;
 - evidence status;
-- handling recommendation from the Core contract;
-- bounded compatibility or not-implemented error.
+- bounded handling recommendation from the Core contract;
+- bounded structured error category.
 
-Raw CLI output, internal debug fields, arbitrary nested metadata, unrestricted paths, and subprocess diagnostics are not part of this MCP projection. The I1.2 response keeps future Core-owned fields `null` because no explain execution occurs.
+The success projection includes Core storage counters, evidence status and warnings, and up to 16 categories with up to 32 rule summaries per category. Strings are bounded to 256 characters. Raw CLI output, accounting internals, volume metadata, path groups, rule rationale, provenance, recoverability details, arbitrary nested metadata, unrestricted paths, and subprocess diagnostics are not part of this MCP projection. The projection does not calculate risk, cleanup eligibility, recoverability, or action recommendations.
 
 ## Input And Security Constraints
 
@@ -80,12 +85,12 @@ Rejected input includes:
 - arbitrary filters;
 - shell, cleanup, delete, quarantine, or restore instructions.
 
-The tool declares `readOnlyHint: true` and `destructiveHint: false`. It performs no filesystem write, shell execution, network telemetry, cloud upload, or mutation. Its only I1.2 subprocess path is the existing fixed `capabilities --json` handshake.
+The tool declares `readOnlyHint: true` and `destructiveHint: false`. It performs no filesystem write, shell execution, network telemetry, cloud upload, or mutation. Its subprocess paths are the fixed capability handshake and the fixed no-snapshot explain command. Core’s skip mode is required so the diagnostic call does not create a scan snapshot.
 
 ## Contract Gate
 
-The handler requires the existing machine-readable capability contract and supported explainability schema version. It does not parse help text, infer compatibility from a version number, or fall back to scan output. If the gate fails, the handler returns a structured compatibility error and no explain command is attempted.
+The handler requires the existing machine-readable capability contract and supported explainability schema version. It does not parse help text, infer compatibility from a version number, or fall back to scan output. If the gate fails, the handler returns a structured compatibility error and no explain command is attempted. Runtime failures are mapped to `core_unavailable`, `contract_unavailable`, `invalid_core_response`, or `projection_failed`.
 
 ## Stop Condition
 
-This document does not authorize Core changes or real explain execution. A later milestone requires a released Core explainability contract, fixture coverage, exact argv tests, bounded projection tests, and owner approval before replacing `not_implemented` with execution.
+This document does not authorize cleanup, restore, quarantine, delete, shell, network, telemetry, or cloud behavior. Real Core smoke validation still depends on the pinned Core binary supplied by CI; local tests use a fake Core executable to prove the exact argv and projection boundary when the developer’s installed binary predates the explain CLI contract.

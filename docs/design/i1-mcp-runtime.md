@@ -1,6 +1,6 @@
 # I1 MCP Runtime
 
-Status: I1.1 implementation note. The current implementation adds only capability discovery; `explain_storage` remains unregistered.
+Status: Superseded by the I1.3 explain runtime adapter. This retains the I1.1 capability-discovery design context.
 
 Date: 2026-08-21
 
@@ -28,7 +28,7 @@ bounded capability projection
 MCP structured result
 ```
 
-The existing I0.1 tools remain available and unchanged. This milestone adds no explainability execution, cleanup, action, mutation, or arbitrary CLI tool.
+The existing I0.1 tools remain available. I1.3 adds the read-only `aidisk_workspace_explain` adapter; it does not add cleanup, action, mutation, or arbitrary CLI tools.
 
 ## Trust Boundary
 
@@ -57,7 +57,7 @@ The current Core contract is `agent-capabilities-v1`, schema version `1`. The fu
 - `snapshot_modes` includes `skip`;
 - bounded path-group output is advertised.
 
-The result reports the individual gate checks in `integration_status.required`. A failed check returns a structured compatibility error and does not enable any future explain tool.
+The result reports the individual gate checks in `integration_status.required`. A failed check returns a structured compatibility error and prevents `aidisk_workspace_explain` from invoking Core explain execution.
 
 The gate never parses help text and never guesses compatibility from `core_version` alone.
 
@@ -75,8 +75,8 @@ Expected structured failure categories include:
 
 Failure responses are bounded and exclude raw Core stdout/stderr. No fallback scan, help parsing, shell execution, local filesystem scan, Rust application call, or network operation occurs.
 
-## Future Explainability Integration Point
+## Implemented Explainability Integration
 
-The future `explain_storage` tool may be registered only after a released Core explainability CLI contract and the compatibility gate are verified in code and tests. It would consume Core-owned explainability evidence and preserve provenance, warnings, partial status, and omission metadata.
+`aidisk_workspace_explain` is registered and invokes the fixed Core explain command only after the capability gate passes. Its detailed runtime sequence and bounded projection are documented in `i1-explain-storage-boundary.md`.
 
-It must not calculate risk, action, deletion recommendations, recoverability, accounting, or explainability semantics. I1.1 deliberately stops before that integration point.
+It must not calculate risk, action, deletion recommendations, recoverability, accounting, or explainability semantics.

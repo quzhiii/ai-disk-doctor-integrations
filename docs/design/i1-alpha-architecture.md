@@ -1,6 +1,6 @@
 # I1 Alpha Architecture
 
-Status: I1 preparation only. This document describes the future Agent Alpha architecture after Core ships compatible explainability contracts. It does not add `explain_storage`, change runtime behavior, modify Core, or modify Desktop.
+Status: Superseded for the runtime boundary by `i1-explain-storage-boundary.md`. This pre-implementation architecture note remains as historical planning context.
 
 Date: 2026-08-21
 
@@ -8,13 +8,13 @@ Date: 2026-08-21
 
 I1 Alpha should let an Agent explain AI workspace storage using Core-owned evidence while preserving the current Integration rule: Core is the only source of truth for scan, policy, risk, action, recoverability, history, diff, model inventory, and explainability.
 
-Future flow:
+Implemented flow:
 
 ```text
 Agent
   |
   v
-MCP explain_storage
+MCP aidisk_workspace_explain
   |
   v
 Core explainability contract
@@ -26,7 +26,7 @@ bounded projection
 Agent response
 ```
 
-The current production MCP boundary remains the Node server over fixed Core CLI argv. I1 implementation must wait until Core exposes a released, versioned explainability CLI contract and a released no-snapshot diagnostic mode.
+The production MCP boundary is the Node server over fixed Core CLI argv. I1.3 consumes the pinned Core’s released, versioned explainability CLI and no-snapshot diagnostic mode.
 
 ## Ownership Boundary
 
@@ -52,13 +52,13 @@ Integration must not calculate or override Core risk, cleanup action, deletion r
 
 ## Schema Flow
 
-The future schema flow has five layers:
+The runtime schema flow has five layers:
 
 | Layer | Source | Responsibility |
 |---|---|---|
 | User request | Agent conversation | Expresses intent such as explaining storage growth or a Core finding. It is not forwarded as an arbitrary Core query. |
 | MCP input | Integration | Minimal structured input, likely optional `category`, with no arbitrary paths or command controls. |
-| Core command | Integration invoking Core | Exact released argv, expected to be `aidisk explain --json --snapshot skip` plus optional validated category after Core supports it. |
+| Core command | Integration invoking Core | Exact released argv: `aidisk explain --json --snapshot skip` plus an optional validated category. |
 | Core JSON | Core | Authoritative `explainability-v1` payload, schema version, evidence, warning, omission, and provenance fields. |
 | MCP output | Integration | Bounded wrapper/projection that preserves Core fields and separately labels Integration transport metadata. |
 
@@ -106,7 +106,7 @@ Before enabling `explain_storage`, Integration must verify:
 - category selector semantics match the released Core contract;
 - current Node subprocess bounds are compatible with representative Core output.
 
-Until all checks pass against a released Core baseline, `explain_storage` remains unregistered and unavailable.
+The `aidisk_workspace_explain` tool is registered and fails closed at first invocation when its machine-readable capability gate does not pass.
 
 ## Non-Goals
 

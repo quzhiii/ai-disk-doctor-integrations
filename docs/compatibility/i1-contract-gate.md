@@ -1,12 +1,12 @@
 # I1 Contract Gate
 
-Status: Compatibility gate draft. It defines conditions for enabling future `explain_storage`; it does not enable the tool or consume unavailable Core contracts.
+Status: Implemented by `aidisk_workspace_explain` for the pinned Core contract. This document records the gate requirements.
 
 Date: 2026-08-21
 
 ## Purpose
 
-`explain_storage` may be enabled only when Integration can prove that the installed Core exposes the required explainability and diagnostic contracts. The gate prevents the Node MCP runtime from silently falling back to incomplete evidence or Integration-generated semantics.
+`aidisk_workspace_explain` executes only when Integration can prove that the installed Core exposes the required explainability and diagnostic contracts. The gate prevents the Node MCP runtime from silently falling back to incomplete evidence or Integration-generated semantics.
 
 ## Required Core Capabilities
 
@@ -36,7 +36,7 @@ The Integration preflight must verify:
 | Input constraints | Category selector semantics are documented and bounded. | Reject input or keep tool unavailable. |
 | Runtime bounds | Representative Core output fits Integration capture/projection strategy or fails with structured overflow. | Tool unavailable until projection is designed. |
 
-The gate may run at server startup, tool-listing time, or first invocation. Whichever timing is chosen, the MCP server must not advertise a usable `explain_storage` tool when the gate has failed.
+The gate runs at first invocation. The registered tool returns a structured unavailable or incompatible result when the gate fails and does not invoke `aidisk explain`.
 
 ## Supported States
 
@@ -47,13 +47,13 @@ Recommended states for future status reporting:
 - `incompatible`: Core exposes a related command but contract, schema, provenance, or no-snapshot semantics do not match.
 - `disabled`: owner/user configuration has disabled the proposed tool even though Core appears compatible.
 
-The current repository state is `unavailable` because the current Node-consumable Core explainability CLI and no-snapshot diagnostic contracts have not been released.
+The current repository accepts the pinned Core’s `agent-capabilities-v1`, `agent-diagnostic-cli-v1`, and `explainability-v1` schema `1` contracts. Older or incompatible binaries remain unavailable.
 
 ## Prohibited Fallbacks
 
 If any gate fails, Integration must not:
 
-- register `explain_storage` as partially available;
+- invoke `aidisk_workspace_explain` explain execution after a failed gate;
 - call `scan_summary` and present it as explainability;
 - calculate explainability from findings;
 - call Rust application APIs from the Node production boundary;
@@ -72,4 +72,4 @@ Opening the gate in a future PR requires:
 - privacy review confirming Integration does not read file contents;
 - owner approval of the final MCP tool name, input schema, output schema, and status behavior.
 
-Until that evidence exists, I1 preparation stops at documentation and PR review.
+The current I1.3 implementation provides fake-Core coverage for its fixed argv, input and contract gates, and bounded projection. CI remains the authoritative pinned-Core smoke path.

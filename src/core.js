@@ -103,9 +103,25 @@ export function validateCoreArgv(args) {
     JSON.stringify(["diff", "--help"]),
     JSON.stringify(["diff", "--latest", "--json"]),
     JSON.stringify(["capabilities", "--json"]),
+    JSON.stringify(["explain", "--json", "--snapshot", "skip"]),
     JSON.stringify(["--version"]),
   ]);
   if (exact.has(serialized)) return;
+  if (
+    args.length === 6
+    && args[0] === "explain"
+    && args[1] === "--json"
+    && args[2] === "--snapshot"
+    && args[3] === "skip"
+    && args[4] === "--category"
+    && typeof args[5] === "string"
+    && args[5].length > 0
+    && args[5].length <= 128
+    && !args[5].includes("\0")
+    && ![...args[5]].some((char) => char.charCodeAt(0) < 0x20)
+  ) {
+    return;
+  }
   if (
     args.length === 4 &&
     args[0] === "scan" &&

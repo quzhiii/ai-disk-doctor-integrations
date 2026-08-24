@@ -1,4 +1,4 @@
-export const CORE_COMMANDS = ["capabilities", "scan", "models", "diff"];
+export const CORE_COMMANDS = ["capabilities", "explain", "scan", "models", "diff"];
 
 const objectSchema = {
   type: "object",
@@ -138,18 +138,92 @@ const workspaceExplainOutputSchema = {
     "error",
   ],
   properties: {
-    ok: { const: false },
+    ok: { type: "boolean" },
     tool: { const: "aidisk_workspace_explain" },
-    status: { enum: ["contract_unavailable", "not_implemented"] },
+    status: { enum: ["complete", "partial", "core_unavailable", "contract_unavailable", "invalid_core_response", "projection_failed"] },
     category: { type: ["string", "null"], maxLength: 128 },
-    storage_summary: { type: ["object", "null"], additionalProperties: false },
-    evidence_status: { type: ["object", "null"], additionalProperties: false },
-    handling_recommendation: { type: ["string", "null"], maxLength: 128 },
+    storage_summary: {
+      type: ["object", "null"],
+      properties: Object.fromEntries([
+        "observed_bytes",
+        "total_size_bytes",
+        "potential_bytes",
+        "actionable_bytes",
+        "quarantine_bytes",
+        "official_cleanup_bytes",
+        "report_only_bytes",
+        "partial_bytes",
+        "reclaimable_safe_bytes",
+        "safe_bytes",
+        "review_bytes",
+        "dangerous_bytes",
+        "system_bytes",
+      ].map((field) => [field, { type: "integer", minimum: 0 }])),
+      additionalProperties: false,
+    },
+    evidence_status: {
+      type: ["object", "null"],
+      properties: {
+        status: { enum: ["complete", "partial"] },
+        partial_findings: { type: "integer", minimum: 0 },
+        warnings: {
+          type: "array",
+          maxItems: 16,
+          items: {
+            type: "object",
+            required: ["code", "message"],
+            properties: {
+              code: { type: ["string", "null"], maxLength: 256 },
+              message: { type: ["string", "null"], maxLength: 256 },
+            },
+            additionalProperties: false,
+          },
+        },
+        truncated: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+    handling_recommendation: {
+      type: ["object", "null"],
+      properties: {
+        categories: {
+          type: "array",
+          maxItems: 16,
+          items: {
+            type: "object",
+            required: ["category_id", "category_name", "handling", "rules", "truncated"],
+            properties: {
+              category_id: { type: ["string", "null"], maxLength: 256 },
+              category_name: { type: ["string", "null"], maxLength: 256 },
+              handling: { type: "object", additionalProperties: { type: "integer", minimum: 0 } },
+              rules: {
+                type: "array",
+                maxItems: 32,
+                items: {
+                  type: "object",
+                  required: ["rule_id", "rule_name", "handling_mode"],
+                  properties: {
+                    rule_id: { type: ["string", "null"], maxLength: 256 },
+                    rule_name: { type: ["string", "null"], maxLength: 256 },
+                    handling_mode: { type: ["string", "null"], maxLength: 256 },
+                  },
+                  additionalProperties: false,
+                },
+              },
+              truncated: { type: "boolean" },
+            },
+            additionalProperties: false,
+          },
+        },
+        truncated: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
     error: {
-      type: "object",
+      type: ["object", "null"],
       required: ["type", "message", "details"],
       properties: {
-        type: { enum: ["compatibility-error", "not-implemented"] },
+        type: { enum: ["core_unavailable", "contract_unavailable", "invalid_core_response", "projection_failed"] },
         message: { type: "string", maxLength: 512 },
         details: {
           type: "object",
@@ -288,7 +362,7 @@ export const TOOL_DEFINITIONS = [
     name: "aidisk_workspace_explain",
     title: "AI Disk Doctor Workspace Explanation",
     description:
-      "Proposed explainability boundary for AI workspace storage. I1.2 validates Core capability compatibility but does not execute Core explainability.",
+      "Explain AI workspace storage using the released Core explainability contract with a fixed no-snapshot diagnostic invocation and bounded Agent projection.",
     inputSchema: {
       ...objectSchema,
       properties: {

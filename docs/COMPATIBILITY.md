@@ -1,14 +1,13 @@
 # Compatibility Matrix
 
-Last audited: 2026-08-19
+Last audited: 2026-08-24
 
 Sources are linked to official vendor documentation. Availability is based on the local machine, not inference.
 
 ## Core compatibility state
 
 - Tested baseline: AI Disk Doctor Core v1.7.0 at `cac502f73c39f1b5de13bab3e4de86a5c29684fc`.
-- Latest merged Public Core reviewed during I0.1: `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7` (M1C `explainability-v1` merged).
-- I1.1 consumes only `aidisk capabilities --json` for machine-readable capability discovery. It does not expose or execute `explain_storage`; the capability contract advertises whether the future explainability CLI is available.
+- I1.3 consumes `aidisk capabilities --json` for compatibility discovery, then `aidisk explain --json --snapshot skip` with an optional validated category selector. It requires `agent-capabilities-v1`, `agent-diagnostic-cli-v1`, and `explainability-v1` schema `1`.
 - Runtime compatibility is checked by `core_status`. The tested revision is provenance; current Core binaries do not prove an exact git revision at runtime.
 
 | Client | Installation method | Skill support | MCP support | Local process | Permissions | Invocation UX | Tested version/date | Evidence status |
