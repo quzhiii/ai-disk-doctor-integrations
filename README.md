@@ -130,4 +130,4 @@ The integration source is dual-licensed under MIT or Apache-2.0. See [`LICENSE-M
 
 ## Status
 
-I1.3 Alpha runtime adapter. This repository is not the commercial Desktop and contains no accounts, billing, entitlements, telemetry, cloud synchronization, or proprietary Desktop code.
+I1 Alpha Agent Integration. This repository is not the commercial Desktop and contains no accounts, billing, entitlements, telemetry, cloud synchronization, or proprietary Desktop code.

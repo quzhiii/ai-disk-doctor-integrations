@@ -153,8 +153,8 @@ The audit started from the clean I1.3 implementation commit:
 repository: quzhiii/ai-disk-doctor-integrations
 branch: research/i1-alpha-preparation
 audit baseline: aeb8d710843a22074a6384bc6428c475495d6d14
-integration SHA represented by the audited implementation: aeb8d710843a22074a6384bc6428c475495d6d14
-release gate commit: the commit containing this document, recorded as the final PR head
+integration implementation final SHA: c1c1fad24b07a9cf8bfbaaa3473ef54d37de99a5
+release gate documentation: this finalization commit, with the current PR head recorded in PR #5
 ```
 
 ### Tests
