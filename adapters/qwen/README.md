@@ -8,4 +8,4 @@ Install a checked-out repository only after running `npm install` in its root:
 qwen extensions install /absolute/path/to/ai-disk-doctor-integrations
 ```
 
-The extension starts `src/server.js` with the Qwen workspace as its working directory, so Core-owned scan snapshots remain workspace-local. The current installed local Qwen CLI was `0.0.1-alpha.8` and did not expose the documented `mcp` or extension management commands during this audit; use a current Qwen Code build that supports the official configuration surface.
+The extension starts `src/server.js` with the Qwen workspace as its working directory, so Core-owned scan snapshots remain workspace-local. I1.4 shared MCP validation covers initialize, tool discovery, schemas, capability-first flow, and the read-only boundary. The current installed local Qwen CLI was `0.0.1-alpha.8` and did not expose the documented `mcp` or extension management commands during this audit; use a current Qwen Code build for vendor-client registration smoke.

@@ -2,7 +2,7 @@
 name: ai-disk-doctor
 description: Diagnose AI and developer workspace storage with AI Disk Doctor's local Core. Use when asking why a disk is full, which AI tools or model caches consume space, what changed recently, what Core evidence supports a classification, or what should be reviewed safely.
 license: MIT OR Apache-2.0
-compatibility: Tested against AI Disk Doctor Core v1.7.0 at the I1.3 explainability-contract baseline. Runtime compatibility is checked by core_status and aidisk_capabilities. Requires an MCP-compatible Agent client; scan_summary may persist a Core-owned snapshot.
+compatibility: Tested against AI Disk Doctor Core v1.7.0 at the I1.4 Agent compatibility-validation baseline. Runtime compatibility is checked by core_status and aidisk_capabilities. Requires an MCP-compatible Agent client; scan_summary may persist a Core-owned snapshot.
 metadata:
   integration: ai-disk-doctor-integrations
   safety: non-destructive-diagnostic-alpha
@@ -57,6 +57,12 @@ Do not promise reclaimable space unless the Core explicitly reports an estimate.
 ## Explainability Boundary
 
 `aidisk_workspace_explain` is available only after its machine-readable capability gate passes. It invokes Core through the fixed no-snapshot explain command and returns a bounded projection of Core-owned storage, evidence, handling, category, and rule data. If it reports `core_unavailable`, `contract_unavailable`, `invalid_core_response`, or `projection_failed`, report that diagnostic state and do not replace it with shell scans or Integration-generated explainability.
+
+## Agent Compatibility
+
+Use the local stdio MCP server from the Agent's documented configuration surface. The safe sequence is `aidisk_capabilities` first, followed by `aidisk_workspace_explain` only when the compatibility result passes. The I1.4 validation record is in `docs/compatibility/i1-agent-validation.md`.
+
+This Skill is read-only. It exposes no cleanup, delete, restore, quarantine, shell, arbitrary filesystem, telemetry, or cloud operation. Do not invent vendor-specific configuration fields for clients whose local MCP contract has not been verified. If a client is unavailable, use the shared MCP protocol validation result only as protocol evidence, not as a claim of client registration support.
 
 For the safety model, tool semantics, examples, and compatibility details, load the linked references only when needed:
 

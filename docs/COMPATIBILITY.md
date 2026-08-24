@@ -7,7 +7,7 @@ Sources are linked to official vendor documentation. Availability is based on th
 ## Core compatibility state
 
 - Tested baseline: AI Disk Doctor Core v1.7.0 at `cac502f73c39f1b5de13bab3e4de86a5c29684fc`.
-- I1.3 consumes `aidisk capabilities --json` for compatibility discovery, then `aidisk explain --json --snapshot skip` with an optional validated category selector. It requires `agent-capabilities-v1`, `agent-diagnostic-cli-v1`, and `explainability-v1` schema `1`.
+- I1.4 validates Agent consumption of the I1.3 MCP surface. It consumes `aidisk capabilities --json` for compatibility discovery, then `aidisk explain --json --snapshot skip` with an optional validated category selector. It requires `agent-capabilities-v1`, `agent-diagnostic-cli-v1`, and `explainability-v1` schema `1`.
 - Runtime compatibility is checked by `core_status`. The tested revision is provenance; current Core binaries do not prove an exact git revision at runtime.
 
 | Client | Installation method | Skill support | MCP support | Local process | Permissions | Invocation UX | Tested version/date | Evidence status |
@@ -28,5 +28,7 @@ Sources are linked to official vendor documentation. Availability is based on th
 - [Qwen Code extension development](https://qwenlm.github.io/qwen-code-docs/en/developers/extensions/getting-started-extensions/)
 - [TRAE MCP documentation](https://docs.trae.ai/ide/model-context-protocol)
 - [TRAE Skills documentation](https://docs.trae.ai/ide/skills)
+
+The detailed I1.4 validation matrix is in [`docs/compatibility/i1-agent-validation.md`](compatibility/i1-agent-validation.md). It distinguishes shared MCP protocol validation from vendor-client registration validation and does not invent manifests for unavailable clients.
 
 CodeBuddy and WorkBuddy packaging remains intentionally conservative until the exact installed product documentation and local client are available. No unverified client behavior is encoded in the canonical Skill or MCP server.

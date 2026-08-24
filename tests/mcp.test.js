@@ -641,6 +641,51 @@ test("MCP stdio smoke lists hardened tools and rejects invalid inputs", async ()
   await client.close();
 });
 
+test("Agent compatibility flow initializes, discovers schemas, and gates explainability", async () => {
+  const coreScript = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) === JSON.stringify(['capabilities','--json'])) {
+  console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+} else if (JSON.stringify(args) === JSON.stringify(['explain','--json','--snapshot','skip'])) {
+  console.log(JSON.stringify(${JSON.stringify(explainFixture())}));
+} else {
+  process.exit(3);
+}
+`);
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [join(process.cwd(), "src", "server.js")],
+    env: { ...process.env, AIDISK_EXE: "definitely-not-aidisk-executable" },
+    cwd: process.cwd(),
+    stderr: "pipe",
+  });
+  const client = new Client({ name: "agent-compatibility-test", version: "1.0.0" });
+  try {
+    await client.connect(transport);
+    const listed = await client.listTools();
+    assert.deepEqual(listed.tools.map((tool) => tool.name), toolNames());
+    const byName = new Map(listed.tools.map((tool) => [tool.name, tool]));
+    assert.deepEqual(Object.keys(byName.get("aidisk_capabilities").inputSchema.properties), []);
+    assert.deepEqual(Object.keys(byName.get("aidisk_workspace_explain").inputSchema.properties), ["category"]);
+    assert.equal(byName.get("aidisk_workspace_explain").annotations.readOnlyHint, true);
+    assert.equal(byName.get("aidisk_workspace_explain").annotations.destructiveHint, false);
+
+    const fakeCoreOptions = { command: process.execPath, prefixArgs: [coreScript] };
+    const capabilities = await aidiskCapabilities({}, fakeCoreOptions);
+    assert.equal(capabilities.integration_status.compatible, true, JSON.stringify(capabilities));
+    const explanation = await aidiskWorkspaceExplain({}, fakeCoreOptions);
+    assert.equal(explanation.ok, true);
+    assert.equal(explanation.error, null);
+
+    for (const forbidden of ["cleanup", "delete", "restore", "root", "policy"]) {
+      const rejected = await client.callTool({ name: "aidisk_workspace_explain", arguments: { [forbidden]: true } });
+      assert.equal(rejected.isError, true, `${forbidden} must be rejected by the MCP boundary`);
+    }
+  } finally {
+    await client.close();
+  }
+});
+
 test("actual Core status and inventory smoke when AIDISK_EXE is supplied", async (t) => {
   if (!process.env.AIDISK_EXE) {
     t.skip("set AIDISK_EXE to run the real Core smoke");
