@@ -41,6 +41,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo fmt --manifest-path spikes/rust-direct-core/Cargo.toml -- --check
       - run: cargo run --manifest-path spikes/rust-direct-core/Cargo.toml
+      - run: cargo fmt --manifest-path spikes/rust-direct-core/explainability-m1c/Cargo.toml -- --check
+      - run: cargo run --manifest-path spikes/rust-direct-core/explainability-m1c/Cargo.toml
 
   pinned-core-smoke:
     name: pinned-core-aidisk-smoke
