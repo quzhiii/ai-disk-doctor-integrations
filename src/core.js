@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 
 export const SERVER_VERSION = "0.1.0-alpha.2";
-export const TESTED_CORE_REVISION = "52f31509394d2165cba8908da00a1036ba90479d";
+export const TESTED_CORE_REVISION = "cac502f73c39f1b5de13bab3e4de86a5c29684fc";
 export const TESTED_CORE_VERSION = "1.7.0";
 export const SERVER_MODE = "non-destructive-diagnostic";
 export const CORE_TIMEOUT_MS = 120_000;
@@ -102,9 +102,26 @@ export function validateCoreArgv(args) {
     JSON.stringify(["models", "inventory", "--json"]),
     JSON.stringify(["diff", "--help"]),
     JSON.stringify(["diff", "--latest", "--json"]),
+    JSON.stringify(["capabilities", "--json"]),
+    JSON.stringify(["explain", "--json", "--snapshot", "skip"]),
     JSON.stringify(["--version"]),
   ]);
   if (exact.has(serialized)) return;
+  if (
+    args.length === 6
+    && args[0] === "explain"
+    && args[1] === "--json"
+    && args[2] === "--snapshot"
+    && args[3] === "skip"
+    && args[4] === "--category"
+    && typeof args[5] === "string"
+    && args[5].length > 0
+    && args[5].length <= 128
+    && !args[5].includes("\0")
+    && ![...args[5]].some((char) => char.charCodeAt(0) < 0x20)
+  ) {
+    return;
+  }
   if (
     args.length === 4 &&
     args[0] === "scan" &&

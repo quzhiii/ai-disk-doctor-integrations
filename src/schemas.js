@@ -1,4 +1,4 @@
-export const CORE_COMMANDS = ["scan", "models", "diff"];
+export const CORE_COMMANDS = ["capabilities", "explain", "scan", "models", "diff"];
 
 const objectSchema = {
   type: "object",
@@ -61,6 +61,183 @@ const coreStatusOutputSchema = {
         },
       },
       additionalProperties: true,
+    },
+  },
+  additionalProperties: false,
+};
+
+const capabilityContractSchema = {
+  type: "object",
+  required: ["name", "supported", "schema_versions", "cli_available", "snapshot_modes", "bounded_path_groups"],
+  properties: {
+    name: { type: "string", maxLength: 128 },
+    supported: { type: "boolean" },
+    schema_versions: { type: "array", maxItems: 8, items: { type: "integer" } },
+    cli_available: { type: "boolean" },
+    snapshot_modes: { type: "array", maxItems: 4, items: { type: "string", maxLength: 128 } },
+    bounded_path_groups: { type: "boolean" },
+  },
+  additionalProperties: false,
+};
+
+const capabilitiesOutputSchema = {
+  type: "object",
+  required: ["ok", "tool", "core_version", "contracts", "truncated", "provenance", "integration_status"],
+  properties: {
+    ok: { type: "boolean" },
+    tool: { const: "aidisk_capabilities" },
+    core_version: { type: ["string", "null"], maxLength: 64 },
+    contracts: { type: "array", maxItems: 16, items: capabilityContractSchema },
+    truncated: { type: "boolean" },
+    provenance: {
+      type: "object",
+      required: ["source", "command", "core_contract", "schema_version"],
+      properties: {
+        source: { const: "ai-disk-doctor-core-cli" },
+        command: { const: ["capabilities", "--json"] },
+        core_contract: { const: "agent-capabilities-v1" },
+        schema_version: { type: ["integer", "null"] },
+      },
+      additionalProperties: false,
+    },
+    integration_status: {
+      type: "object",
+      required: ["compatible", "status", "required"],
+      properties: {
+        compatible: { type: "boolean" },
+        status: { type: "string", maxLength: 64 },
+        required: { type: "object", additionalProperties: { type: "boolean" } },
+        reasons: { type: "array", maxItems: 16, items: { type: "string", maxLength: 512 } },
+      },
+      additionalProperties: false,
+    },
+    error: {
+      type: "object",
+      required: ["type", "message", "details"],
+      properties: {
+        type: { type: "string", maxLength: 128 },
+        message: { type: "string", maxLength: 512 },
+        details: { type: "object", additionalProperties: true },
+      },
+      additionalProperties: false,
+    },
+  },
+  additionalProperties: false,
+};
+
+const workspaceExplainOutputSchema = {
+  type: "object",
+  required: [
+    "ok",
+    "tool",
+    "status",
+    "category",
+    "storage_summary",
+    "evidence_status",
+    "handling_recommendation",
+    "error",
+  ],
+  properties: {
+    ok: { type: "boolean" },
+    tool: { const: "aidisk_workspace_explain" },
+    status: { enum: ["complete", "partial", "core_unavailable", "contract_unavailable", "invalid_core_response", "projection_failed"] },
+    category: { type: ["string", "null"], maxLength: 128 },
+    storage_summary: {
+      type: ["object", "null"],
+      properties: Object.fromEntries([
+        "observed_bytes",
+        "total_size_bytes",
+        "potential_bytes",
+        "actionable_bytes",
+        "quarantine_bytes",
+        "official_cleanup_bytes",
+        "report_only_bytes",
+        "partial_bytes",
+        "reclaimable_safe_bytes",
+        "safe_bytes",
+        "review_bytes",
+        "dangerous_bytes",
+        "system_bytes",
+      ].map((field) => [field, { type: "integer", minimum: 0 }])),
+      additionalProperties: false,
+    },
+    evidence_status: {
+      type: ["object", "null"],
+      properties: {
+        status: { enum: ["complete", "partial"] },
+        partial_findings: { type: "integer", minimum: 0 },
+        warnings: {
+          type: "array",
+          maxItems: 16,
+          items: {
+            type: "object",
+            required: ["code", "message"],
+            properties: {
+              code: { type: ["string", "null"], maxLength: 256 },
+              message: { type: ["string", "null"], maxLength: 256 },
+            },
+            additionalProperties: false,
+          },
+        },
+        truncated: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+    handling_recommendation: {
+      type: ["object", "null"],
+      properties: {
+        categories: {
+          type: "array",
+          maxItems: 16,
+          items: {
+            type: "object",
+            required: ["category_id", "category_name", "handling", "rules", "truncated"],
+            properties: {
+              category_id: { type: ["string", "null"], maxLength: 256 },
+              category_name: { type: ["string", "null"], maxLength: 256 },
+              handling: { type: "object", additionalProperties: { type: "integer", minimum: 0 } },
+              rules: {
+                type: "array",
+                maxItems: 32,
+                items: {
+                  type: "object",
+                  required: ["rule_id", "rule_name", "handling_mode"],
+                  properties: {
+                    rule_id: { type: ["string", "null"], maxLength: 256 },
+                    rule_name: { type: ["string", "null"], maxLength: 256 },
+                    handling_mode: { type: ["string", "null"], maxLength: 256 },
+                  },
+                  additionalProperties: false,
+                },
+              },
+              truncated: { type: "boolean" },
+            },
+            additionalProperties: false,
+          },
+        },
+        truncated: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+    error: {
+      type: ["object", "null"],
+      required: ["type", "message", "details"],
+      properties: {
+        type: { enum: ["core_unavailable", "contract_unavailable", "invalid_core_response", "projection_failed"] },
+        message: { type: "string", maxLength: 512 },
+        details: {
+          type: "object",
+          required: ["contract", "schema_version"],
+          properties: {
+            contract: { const: "explainability-v1" },
+            schema_version: { const: 1 },
+            reasons: { type: "array", maxItems: 8, items: { type: "string", maxLength: 512 } },
+            required: { type: "object", additionalProperties: { type: "boolean" } },
+          },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: false,
     },
   },
   additionalProperties: false,
@@ -167,6 +344,44 @@ const boundedDiffOutputSchema = {
 };
 
 export const TOOL_DEFINITIONS = [
+  {
+    name: "aidisk_capabilities",
+    title: "AI Disk Doctor Capabilities",
+    description:
+      "Discover the local AI Disk Doctor machine-readable capability contract and report whether the future explainability gate is compatible. This performs no scan and does not modify files.",
+    inputSchema: { ...objectSchema, properties: {} },
+    outputSchema: capabilitiesOutputSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: "aidisk_workspace_explain",
+    title: "AI Disk Doctor Workspace Explanation",
+    description:
+      "Explain AI workspace storage using the released Core explainability contract with a fixed no-snapshot diagnostic invocation and bounded Agent projection.",
+    inputSchema: {
+      ...objectSchema,
+      properties: {
+        category: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          description: "Optional Core explainability category selector.",
+        },
+      },
+    },
+    outputSchema: workspaceExplainOutputSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
   {
     name: "core_status",
     title: "AI Disk Doctor Core Status",

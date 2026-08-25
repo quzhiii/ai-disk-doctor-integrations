@@ -2,6 +2,8 @@ import Ajv from "ajv";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { aidiskCapabilities } from "../mcp/tools/aidisk-capabilities.js";
+import { aidiskWorkspaceExplain } from "../mcp/tools/aidisk-workspace-explain.js";
 import {
   aiModelInventory,
   contentFor,
@@ -33,6 +35,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const name = request.params?.name;
   const args = request.params?.arguments || {};
   const handlers = {
+    aidisk_capabilities: aidiskCapabilities,
+    aidisk_workspace_explain: aidiskWorkspaceExplain,
     core_status: coreStatus,
     scan_summary: scanSummary,
     ai_model_inventory: aiModelInventory,

@@ -37,6 +37,15 @@ function textSummary(value) {
   if (value.total_changes !== undefined) {
     lines.push(`changes=${value.returned_changes}/${value.total_changes}`);
   }
+  if (value.storage_summary?.total_size_bytes !== undefined) {
+    lines.push(`total_size_bytes=${value.storage_summary.total_size_bytes}`);
+  }
+  if (value.evidence_status?.status !== undefined) {
+    lines.push(`evidence_status=${value.evidence_status.status}`);
+  }
+  if (value.handling_recommendation?.categories !== undefined) {
+    lines.push(`categories=${value.handling_recommendation.categories.length}`);
+  }
   if (value.truncated !== undefined) {
     lines.push(`truncated=${value.truncated}`);
   }
