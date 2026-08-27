@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +16,7 @@ import { projectWorkspaceExplain } from "../mcp/projection/workspace-explain.js"
 import { validateExplainabilityCompatibility } from "../mcp/server/compatibility.js";
 import { TOOL_DEFINITIONS } from "../src/schemas.js";
 import {
+  CORE_TIMEOUT_MS,
   MAX_ERROR_EVIDENCE_CHARS,
   TESTED_CORE_REVISION,
   TESTED_CORE_VERSION,
@@ -44,6 +46,16 @@ import {
 } from "../src/tools.js";
 
 const toolNames = () => TOOL_DEFINITIONS.map((tool) => tool.name);
+
+function withoutDescriptions(value) {
+  if (Array.isArray(value)) return value.map(withoutDescriptions);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "description")
+      .map(([key, item]) => [key, withoutDescriptions(item)]),
+  );
+}
 
 function capabilitiesFixture(overrides = {}) {
   return {
@@ -237,6 +249,111 @@ if (JSON.stringify(args) === JSON.stringify(['capabilities','--json'])) {
   const result = await aidiskWorkspaceExplain({}, { command: process.execPath, prefixArgs: [script] });
   assert.equal(result.ok, true);
   assert.equal(result.category, null);
+});
+
+test("aidisk_workspace_explain performs its own capability gate before explain", async () => {
+  const calls = join(await mkdtemp(join(tmpdir(), "aidisk-explain-gate-")), "calls.jsonl");
+  const incompatibleCapabilities = capabilitiesFixture({
+    capabilities: {
+      explainability: {
+        contract: "explainability-v2",
+        schema_versions: [2],
+        cli_available: true,
+        snapshot_modes: ["skip"],
+        bounded_path_groups: true,
+      },
+    },
+  });
+  const script = await fakeCoreScript(`
+import { appendFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+appendFileSync(${JSON.stringify(calls)}, JSON.stringify(args) + '\\n');
+if (JSON.stringify(args) === JSON.stringify(['capabilities','--json'])) {
+  console.log(JSON.stringify(${JSON.stringify(incompatibleCapabilities)}));
+} else {
+  process.exit(3);
+}
+`);
+  const result = await aidiskWorkspaceExplain({}, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "contract_unavailable");
+  assert.deepEqual(
+    (await (await import("node:fs/promises")).readFile(calls, "utf8")).trim().split("\n").map((line) => JSON.parse(line)),
+    [["capabilities", "--json"]],
+  );
+});
+
+test("user asking why the computer is getting full starts complete explain without category", async () => {
+  const script = await fakeCoreScript(`
+const args = process.argv.slice(2);
+if (JSON.stringify(args) === JSON.stringify(['capabilities','--json'])) {
+  console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
+} else if (JSON.stringify(args) === JSON.stringify(['explain','--json','--snapshot','skip'])) {
+  console.log(JSON.stringify(${JSON.stringify(explainFixture())}));
+} else {
+  process.exit(3);
+}
+`);
+  const result = await aidiskWorkspaceExplain({}, { command: process.execPath, prefixArgs: [script] });
+  assert.equal(result.ok, true);
+  assert.equal(result.category, null);
+  assert.equal(result.storage_summary.total_size_bytes, 120);
+  assert.equal(result.evidence_status.status, "partial");
+});
+
+test("workspace explain description makes complete no-category usage explicit", () => {
+  const tool = TOOL_DEFINITIONS.find((entry) => entry.name === "aidisk_workspace_explain");
+  assert.match(tool.description, /omit category/i);
+  assert.match(tool.description, /complete (workspace )?overview/i);
+  assert.match(tool.description, /never put .* in category/i);
+  assert.match(tool.inputSchema.properties.category.description, /only when the user explicitly (requests|names)/i);
+});
+
+test("tool descriptions clarify diagnostic roles without changing the tool contract", () => {
+  const byName = new Map(TOOL_DEFINITIONS.map((tool) => [tool.name, tool]));
+  assert.match(byName.get("aidisk_workspace_explain").description, /primary (tool|entry point)/i);
+  assert.match(byName.get("aidisk_workspace_explain").description, /storage growth/i);
+  assert.match(byName.get("aidisk_workspace_explain").description, /performs its own compatibility check/i);
+  assert.match(byName.get("aidisk_capabilities").description, /explicit capability/i);
+  assert.match(byName.get("aidisk_capabilities").description, /not required before aidisk_workspace_explain/i);
+  assert.match(byName.get("scan_summary").description, /low-level scanner/i);
+  assert.match(byName.get("scan_summary").description, /prefer aidisk_workspace_explain/i);
+  assert.match(byName.get("ai_model_inventory").description, /explicit model-asset/i);
+  assert.match(byName.get("ai_model_inventory").description, /not a general disk-diagnosis tool/i);
+});
+
+test("description intervention preserves the registered runtime contract", () => {
+  const byName = new Map(TOOL_DEFINITIONS.map((tool) => [tool.name, tool]));
+  assert.deepEqual(toolNames(), [
+    "aidisk_capabilities",
+    "aidisk_workspace_explain",
+    "core_status",
+    "scan_summary",
+    "ai_model_inventory",
+    "latest_diff",
+  ]);
+  assert.deepEqual(Object.keys(byName.get("aidisk_capabilities").inputSchema.properties), []);
+  assert.deepEqual(Object.keys(byName.get("aidisk_workspace_explain").inputSchema.properties), ["category"]);
+  assert.deepEqual(Object.keys(byName.get("scan_summary").inputSchema.properties), ["category"]);
+  assert.deepEqual(Object.keys(byName.get("ai_model_inventory").inputSchema.properties), ["tool"]);
+  assert.deepEqual(Object.keys(byName.get("latest_diff").inputSchema.properties), []);
+  assert.equal(byName.get("aidisk_workspace_explain").annotations.readOnlyHint, true);
+  assert.equal(byName.get("aidisk_workspace_explain").annotations.destructiveHint, false);
+  assert.equal(byName.get("scan_summary").annotations.readOnlyHint, false);
+  assert.equal(byName.get("scan_summary").annotations.destructiveHint, false);
+  assert.equal(CORE_TIMEOUT_MS, 120_000);
+  assert.doesNotThrow(() => validateCoreArgv(["capabilities", "--json"]));
+  assert.doesNotThrow(() => validateCoreArgv(["explain", "--json", "--snapshot", "skip"]));
+  assert.doesNotThrow(() => validateCoreArgv(["explain", "--json", "--snapshot", "skip", "--category", "ai-agents"]));
+  assert.doesNotThrow(() => validateCoreArgv(["scan", "--json"]));
+  assert.doesNotThrow(() => validateCoreArgv(["models", "inventory", "--json"]));
+  assert.doesNotThrow(() => validateCoreArgv(["diff", "--latest", "--json"]));
+  assert.equal(
+    createHash("sha256")
+      .update(JSON.stringify(withoutDescriptions(TOOL_DEFINITIONS.map(({ description, ...tool }) => tool))))
+      .digest("hex"),
+    "96da5d6815dd01f53d2a979816f5c0acaf4dafe7d53bd8daa9ccae2dc919b93e",
+  );
 });
 
 test("aidisk_workspace_explain rejects forbidden root and policy fields", async () => {
