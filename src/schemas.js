@@ -348,7 +348,7 @@ export const TOOL_DEFINITIONS = [
     name: "aidisk_capabilities",
     title: "AI Disk Doctor Capabilities",
     description:
-      "Discover the local AI Disk Doctor machine-readable capability contract and report whether the future explainability gate is compatible. This performs no scan and does not modify files.",
+      "Inspect the local AI Disk Doctor capability contract for explicit capability or compatibility troubleshooting. Use when the user asks what AI Disk Doctor supports or whether Core, contract, or schema availability is compatible. This is not required before aidisk_workspace_explain; workspace explain performs its own compatibility gate. This performs no scan and does not modify files.",
     inputSchema: { ...objectSchema, properties: {} },
     outputSchema: capabilitiesOutputSchema,
     annotations: {
@@ -362,7 +362,7 @@ export const TOOL_DEFINITIONS = [
     name: "aidisk_workspace_explain",
     title: "AI Disk Doctor Workspace Explanation",
     description:
-      "Explain AI workspace storage using the released Core explainability contract with a fixed no-snapshot diagnostic invocation and bounded Agent projection.",
+      "Primary tool for natural-language explanations of AI/developer workspace storage growth, including why a computer is getting full and storage used by AI tools, models, caches, and Agent data. For a complete overview, call with the empty object {}: omit category entirely. Never put natural-language scope words such as all, complete, workspace, overview, storage, disk, or full in category; provide category only when the user explicitly names a Core category. This tool performs its own compatibility check, fails closed when unsupported, and is read-only.",
     inputSchema: {
       ...objectSchema,
       properties: {
@@ -370,7 +370,7 @@ export const TOOL_DEFINITIONS = [
           type: "string",
           minLength: 1,
           maxLength: 128,
-          description: "Optional Core explainability category selector.",
+          description: "Optional Core explainability category selector. Omit this field for the complete workspace overview. Supply it only when the user explicitly names a Core category. Never use natural-language scope words such as all, complete, workspace, overview, storage, disk, or full as invented values.",
         },
       },
     },
@@ -400,7 +400,7 @@ export const TOOL_DEFINITIONS = [
     name: "scan_summary",
     title: "AI Disk Doctor Scan Summary",
     description:
-      "Run AI Disk Doctor's existing non-destructive scan and return a bounded projection of Core JSON evidence. The current Core CLI may persist an AI Disk Doctor-owned snapshot under .aidisk/reports; it does not mutate user files.",
+      "Low-level scanner evidence and scan inspection. Use when the user explicitly asks for scan findings or scanner-level/raw diagnostic evidence. For a general explanation of why storage is growing or the workspace is full, prefer aidisk_workspace_explain instead. The current Core CLI may persist an AI Disk Doctor-owned snapshot under .aidisk/reports; it does not mutate user files.",
     inputSchema: {
       ...objectSchema,
       properties: {
@@ -424,7 +424,7 @@ export const TOOL_DEFINITIONS = [
     name: "ai_model_inventory",
     title: "AI Model And Cache Inventory",
     description:
-      "Use AI Disk Doctor's existing metadata-only model inventory with Core defaults and return a bounded asset projection. It does not read model, prompt, source, token, or credential contents and does not mutate files.",
+      "Inspect known AI model assets and metadata for explicit model-asset or model-inventory questions, including known AI model file inspection. This is not a general disk-diagnosis tool. It does not read model, prompt, source, token, or credential contents and does not mutate files.",
     inputSchema: {
       ...objectSchema,
       properties: {

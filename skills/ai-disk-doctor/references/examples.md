@@ -2,7 +2,7 @@
 
 ## Disk Suddenly Full
 
-Call `core_status`, then `scan_summary`. Summarize the largest returned findings by Core category and risk. If a finding is missing, partial, active, sensitive, or report-only, say so rather than recommending removal. If `truncated` is true, say the MCP result is bounded.
+Call `aidisk_workspace_explain` with `{}` and no category. Summarize the largest returned findings by Core category and risk. If a finding is missing, partial, active, sensitive, or report-only, say so rather than recommending removal. If `truncated` is true, say the MCP result is bounded. Use `scan_summary` only when the user explicitly asks for scanner-level findings.
 
 ## Model Storage
 
