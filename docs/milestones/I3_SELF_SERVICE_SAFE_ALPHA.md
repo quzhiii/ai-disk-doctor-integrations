@@ -2,9 +2,10 @@
 
 ## Status
 
-`FROZEN_FOR_NEXT_SESSION`
+`FROZEN`
 
-This governance-bootstrap session must not execute I3.
+I3 must not be executed in this governance-bootstrap session. Execution starts
+only after PR #9 is accepted and merged, in a fresh Agent session.
 
 ## Objective
 

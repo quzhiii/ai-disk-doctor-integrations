@@ -41,6 +41,33 @@ The Agent:
 The Agent must preserve current Integration/Core boundaries and must not
 silently broaden permissions, mutation, data collection, or product scope.
 
+## Truth and Authority
+
+Keep two questions separate:
+
+- **Runtime / Product Truth:** What are the product and runtime currently?
+- **Execution Authority:** What may the Agent do in this milestone?
+
+Determine Runtime / Product Truth in this order:
+
+1. Current repository code and public contracts
+2. Current accepted runtime and product documentation
+3. Current accepted validation evidence
+4. Historical decisions and validation records
+5. Chat assumptions
+
+Determine Execution Authority in this order:
+
+1. Frozen current milestone contract
+2. Repo-level governance in `AGENTS.md` and this protocol
+3. Accepted product and runtime documentation as supporting context
+4. Chat assumptions
+
+Code and public contracts decide current reality. The frozen milestone decides
+current execution scope. A milestone must never override runtime facts or
+public contracts, while current product documentation must not silently expand
+a frozen milestone's scope.
+
 ## Milestone Lifecycle
 
 The standard lifecycle is:
@@ -56,6 +83,8 @@ audit or implement a milestone only after the contract is explicitly frozen.
 `EVIDENCE_READY` means the Agent has supplied the required evidence; it is not
 acceptance. `PASS` is an Owner decision. `BLOCKED` means progress cannot
 continue without a decision, dependency, or fix outside the Agent's authority.
+These six values are the only formal milestone lifecycle states:
+`PROPOSED`, `FROZEN`, `IN_PROGRESS`, `EVIDENCE_READY`, `PASS`, and `BLOCKED`.
 
 ## Frozen Contract
 

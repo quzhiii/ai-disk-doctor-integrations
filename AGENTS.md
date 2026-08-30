@@ -35,19 +35,33 @@ Do not assume Markdown paths are automatically expanded or loaded. Actually
 read each file with the Read tool. Then audit the current repository, branch,
 HEAD, working tree, relevant code, docs, tests, and workflows.
 
-# Source of Truth Order
+# Runtime / Product Truth
 
-When sources conflict, use this order:
+Use this order to determine what the product and runtime currently are:
 
-1. Current repository code and current contracts
-2. Current accepted product and runtime documentation
-3. The current milestone contract
-4. The governance protocol
-5. Historical decisions and validation records
-6. Chat assumptions
+1. Current repository code and public contracts
+2. Current accepted runtime and product documentation
+3. Current accepted validation evidence
+4. Historical decisions and validation records
+5. Chat assumptions
 
-Historical or archived material must not override current truth. Label
-historical evidence as historical and do not present it as runtime behavior.
+Code and public contracts decide current reality. Historical or archived
+material must not override it. Label historical evidence as historical and do
+not present it as runtime behavior.
+
+# Execution Authority
+
+Use this order to determine what the Agent is authorized to do in the current
+milestone:
+
+1. Frozen current milestone contract
+2. Repo-level governance in `AGENTS.md` and `docs/governance/MILESTONE_PROTOCOL.md`
+3. Accepted product and runtime documentation as supporting context
+4. Chat assumptions
+
+The frozen milestone decides current execution scope. It must never override
+runtime facts or public contracts, and current product documentation must not
+silently expand the frozen milestone's scope.
 
 # Agent Planning
 
