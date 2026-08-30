@@ -11,6 +11,22 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 import { aidiskCapabilities } from "../mcp/tools/aidisk-capabilities.js";
 import { aidiskWorkspaceExplain } from "../mcp/tools/aidisk-workspace-explain.js";
+import {
+  ALL_DIAGNOSTIC_TOOLS,
+  FORBIDDEN_TOOL_PATTERN,
+  OWNERSHIP_MARKER,
+  PROFILE_NAME,
+  SERVER_NAME,
+  buildRegisterArgs,
+  buildRemoveArgs,
+  quoteWindowsArgument,
+  createFeedbackReceipt,
+  safeLaunchArgs,
+  safeSpotCheck,
+  setup as setupAlpha,
+  uninstall as uninstallAlpha,
+  VERIFY_REQUEST_TIMEOUT_MS,
+} from "../scripts/i3.mjs";
 import { projectCapabilities, projectCapabilitiesError } from "../mcp/projection/capabilities.js";
 import { projectWorkspaceExplain } from "../mcp/projection/workspace-explain.js";
 import { validateExplainabilityCompatibility } from "../mcp/server/compatibility.js";
@@ -341,7 +357,7 @@ test("description intervention preserves the registered runtime contract", () =>
   assert.equal(byName.get("aidisk_workspace_explain").annotations.destructiveHint, false);
   assert.equal(byName.get("scan_summary").annotations.readOnlyHint, false);
   assert.equal(byName.get("scan_summary").annotations.destructiveHint, false);
-  assert.equal(CORE_TIMEOUT_MS, 120_000);
+   assert.equal(CORE_TIMEOUT_MS, 180_000);
   assert.doesNotThrow(() => validateCoreArgv(["capabilities", "--json"]));
   assert.doesNotThrow(() => validateCoreArgv(["explain", "--json", "--snapshot", "skip"]));
   assert.doesNotThrow(() => validateCoreArgv(["explain", "--json", "--snapshot", "skip", "--category", "ai-agents"]));
@@ -838,4 +854,157 @@ test("pinned Core explain smoke skips snapshot persistence", async (t) => {
   assert.equal(result.ok, true);
   assert.ok(["complete", "partial"].includes(result.status));
   await assert.rejects(() => readdir(join(workspace, ".aidisk", "reports")), /ENOENT/);
+});
+
+test("I3 safe profile allows only the diagnostic MCP tools", () => {
+  const args = safeLaunchArgs({ configPath: "C:/temp/mcp.json", prompt: "hello" });
+  assert.deepEqual(args.slice(0, 4), ["--strict-mcp-config", "--mcp-config", "C:/temp/mcp.json", "--tools"]);
+  assert.equal(args[4], "");
+  assert.match(args[6], new RegExp(`mcp__${SERVER_NAME}__aidisk_workspace_explain`));
+  assert.match(args[8], /Bash/);
+  assert.match(args[8], /Write/);
+  assert.equal(ALL_DIAGNOSTIC_TOOLS.some((tool) => FORBIDDEN_TOOL_PATTERN.test(tool)), false);
+  assert.equal(VERIFY_REQUEST_TIMEOUT_MS, 240_000);
+});
+
+test("I3 setup registers a package-owned Claude server without exposing workspace paths", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-setup-"));
+  const calls = [];
+  let registered = false;
+  const commandRunner = async ({ command, args }) => {
+    calls.push({ command, args });
+    if (args[0] === "--version") return { code: 0, stdout: "2.1.197\n", stderr: "" };
+    if (args[0] === "mcp" && args[1] === "get") {
+      return registered
+        ? {
+          code: 0,
+          stdout: `Scope: Local config\nStatus: Connected\nType: stdio\nEnvironment:\n  AIDISK_INTEGRATION_MANAGED_BY=${OWNERSHIP_MARKER}\n  AIDISK_INTEGRATION_PROFILE=${PROFILE_NAME}\n`,
+          stderr: "",
+        }
+        : { code: 1, stdout: "", stderr: "No MCP server named ai-disk-doctor" };
+    }
+    if (args[0] === "mcp" && args[1] === "add") {
+      registered = true;
+      return { code: 0, stdout: "Added stdio MCP server ai-disk-doctor", stderr: "" };
+    }
+    throw new Error(`unexpected Claude command: ${args.join(" ")}`);
+  };
+  const result = await setupAlpha({
+    workspace,
+    core: process.execPath,
+    claude: "fake-claude",
+    commandRunner,
+    coreRunner: async () => capabilitiesFixture(),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.mcp.ownership, "package-owned");
+  assert.equal(result.workspace.path_included, false);
+  assert.equal(result.prerequisites.claude_code, "2.1.197\n");
+  const add = calls.find(({ args }) => args[0] === "mcp" && args[1] === "add");
+  assert.deepEqual(add.args, buildRegisterArgs({ core: process.execPath }));
+  assert.equal(add.args.filter((arg) => arg === "-e").length, 3);
+  assert.equal(JSON.stringify(result).includes(workspace), false);
+});
+
+test("I3 setup refuses to replace an unowned same-name Claude server", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-conflict-"));
+  const commandRunner = async ({ args }) => {
+    if (args[0] === "--version") return { code: 0, stdout: "2.1.197", stderr: "" };
+    if (args[0] === "mcp" && args[1] === "get") {
+      return { code: 0, stdout: "Scope: Local config\nStatus: Connected\nType: stdio\nEnvironment:\n  OTHER=owned\n", stderr: "" };
+    }
+    throw new Error("setup should not mutate an unowned registration");
+  };
+  await assert.rejects(
+    () => setupAlpha({
+      workspace,
+      core: process.execPath,
+      claude: "fake-claude",
+      commandRunner,
+      coreRunner: async () => capabilitiesFixture(),
+    }),
+    /unowned/,
+  );
+});
+
+test("I3 uninstall removes only an owned registration", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-uninstall-"));
+  const calls = [];
+  const commandRunner = async ({ args }) => {
+    calls.push(args);
+    if (args[0] === "mcp" && args[1] === "get") {
+      return {
+        code: 0,
+        stdout: `Scope: Local config\nStatus: Connected\nType: stdio\nEnvironment:\n  AIDISK_INTEGRATION_MANAGED_BY=${OWNERSHIP_MARKER}\n  AIDISK_INTEGRATION_PROFILE=${PROFILE_NAME}\n`,
+        stderr: "",
+      };
+    }
+    if (args[0] === "mcp" && args[1] === "remove") return { code: 0, stdout: "removed", stderr: "" };
+    throw new Error(`unexpected command ${args.join(" ")}`);
+  };
+  const result = await uninstallAlpha({ workspace, claude: "fake-claude", commandRunner });
+  assert.deepEqual(result, { ok: true, command: "uninstall", status: "removed", removed: true, error: null });
+  assert.deepEqual(calls[1], buildRemoveArgs());
+});
+
+test("I3 feedback receipt is bounded and redacts workspace and Core paths", () => {
+  const receipt = createFeedbackReceipt({
+    setup: { ok: true, setup_duration_ms: 1, workspace: "C:/secret/workspace" },
+    verification: {
+      mcp: { connected: true },
+      diagnosis: { status: "complete", evidence_status: "partial" },
+      duration_ms: 2,
+    },
+  });
+  assert.equal(receipt.schema, "ai-disk-doctor-feedback-v1");
+  assert.equal(receipt.safety.mutation_tools_present, false);
+  assert.equal(receipt.safety.raw_paths_included, false);
+  assert.equal(receipt.privacy.workspace, "[redacted]");
+  assert.equal(JSON.stringify(receipt).includes("C:/secret/workspace"), false);
+  assert.equal(receipt.privacy.sharing_consent_required, true);
+});
+
+test("I3 feedback preparation does not run another Core diagnosis", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-feedback-"));
+  let coreCalls = 0;
+  let getCalls = 0;
+  const commandRunner = async ({ args }) => {
+    if (args[0] === "mcp" && args[1] === "get") {
+      getCalls += 1;
+      return {
+        code: 0,
+        stdout: `Scope: Local config\nStatus: Connected\nType: stdio\nEnvironment:\n  AIDISK_INTEGRATION_MANAGED_BY=${OWNERSHIP_MARKER}\n  AIDISK_INTEGRATION_PROFILE=${PROFILE_NAME}\n`,
+        stderr: "",
+      };
+    }
+    if (args[0] === "capabilities") coreCalls += 1;
+    throw new Error(`unexpected command ${args.join(" ")}`);
+  };
+  const receipt = await (await import("../scripts/i3.mjs")).feedback({
+    workspace,
+    claude: "fake-claude",
+    commandRunner,
+    out: join(workspace, "receipt.json"),
+  });
+  assert.equal(receipt.ok, true);
+  assert.equal(receipt.status, "prepared");
+  assert.equal(coreCalls, 0);
+  assert.equal(getCalls, 1);
+});
+
+test("I3 safety check fails closed before setup", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-safety-"));
+  const result = await safeSpotCheck({
+    workspace,
+    claude: "fake-claude",
+    commandRunner: async () => ({ code: 1, stdout: "", stderr: "not configured" }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "not_configured");
+  assert.equal(result.mutation_tools_present, false);
+});
+
+test("I3 Windows command forwarding preserves spaces in executable paths", () => {
+  assert.equal(quoteWindowsArgument("D:/Program Files/nodejs/node.exe"), '"D:/Program Files/nodejs/node.exe"');
+  assert.equal(quoteWindowsArgument("plain-value"), "plain-value");
 });

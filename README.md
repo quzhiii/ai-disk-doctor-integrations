@@ -43,6 +43,23 @@ npm start
 
 The process uses MCP stdio transport and should be started by an MCP client. The npm dependency set is locked in `package-lock.json`.
 
+### I3 Self-Service Alpha
+
+For the Windows-first Claude Code path, use the package-managed setup and
+verification commands documented in [`docs/I3_SELF_SERVICE.md`](docs/I3_SELF_SERVICE.md):
+
+```powershell
+npm install
+npm run setup -- --workspace C:\path\to\workspace --core C:\path\to\aidisk.exe
+npm run verify -- --workspace C:\path\to\workspace --core C:\path\to\aidisk.exe
+```
+
+Setup refuses to overwrite an unowned same-name Claude registration. The safe
+Alpha launch uses a temporary strict MCP configuration with only the existing
+diagnostic MCP tools and denies host mutation/shell tools. `feedback` writes a
+local redacted receipt only when explicitly requested; `uninstall` removes only
+the package-owned local Claude registration.
+
 ### OpenCode
 
 OpenCode supports project-local MCP declarations in `opencode.json` or `opencode.jsonc`:
@@ -130,4 +147,6 @@ The integration source is dual-licensed under MIT or Apache-2.0. See [`LICENSE-M
 
 ## Status
 
-I1 Alpha Agent Integration. This repository is not the commercial Desktop and contains no accounts, billing, entitlements, telemetry, cloud synchronization, or proprietary Desktop code.
+I3 Self-Service Safe Alpha. This repository is not the commercial Desktop and
+contains no accounts, billing, entitlements, telemetry, cloud synchronization,
+or proprietary Desktop code.

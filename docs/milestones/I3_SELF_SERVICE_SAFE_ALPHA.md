@@ -2,10 +2,10 @@
 
 ## Status
 
-`FROZEN`
+`EVIDENCE_READY`
 
-I3 must not be executed in this governance-bootstrap session. Execution starts
-only after PR #9 is accepted and merged, in a fresh Agent session.
+Execution is authorized in the fresh post-PR #9 Agent session. The accepted
+governance merge baseline is `b8dec53c699941e724570be051c92dca0d3224fc`.
 
 ## Objective
 

@@ -2,7 +2,7 @@
 name: ai-disk-doctor
 description: Diagnose AI and developer workspace storage with AI Disk Doctor's local Core. Use when asking why a disk is full, which AI tools or model caches consume space, what changed recently, what Core evidence supports a classification, or what should be reviewed safely.
 license: MIT OR Apache-2.0
-compatibility: Tested against AI Disk Doctor Core v1.7.0 at the I1.4 Agent compatibility-validation baseline. Workspace explain performs its own runtime compatibility gate. Requires an MCP-compatible Agent client; scan_summary may persist a Core-owned snapshot.
+compatibility: Tested against AI Disk Doctor Core v1.7.0 at the I3 self-service Alpha baseline. Workspace explain performs its own runtime compatibility gate. Requires an MCP-compatible Agent client; scan_summary may persist a Core-owned snapshot.
 metadata:
   integration: ai-disk-doctor-integrations
   safety: non-destructive-diagnostic-alpha
@@ -22,16 +22,17 @@ Use this Skill for questions such as:
 - What changed since the previous scan?
 - Which findings need review, and what evidence supports that classification?
 
-## I1 Workflow
+## I3 Workflow
 
-1. For a natural storage diagnosis such as why the computer is getting full, call `aidisk_workspace_explain` as the primary entry point with `{}` and no `category` field. Its handler performs the capability compatibility check internally.
-2. Supply `aidisk_workspace_explain.category` only when the user explicitly requests a focused, named Core category. Preserve the user's requested category without guessing a different value.
-3. Use `aidisk_capabilities` for explicit capability inspection or compatibility troubleshooting, such as what AI Disk Doctor supports or whether the Core contract/schema is available. It is not required before `aidisk_workspace_explain`.
-4. Call `core_status` when the Core may be missing or the environment is unfamiliar. If workspace explain reports an unavailable or incompatible Core, report that diagnostic state and stop.
-5. Use `scan_summary` for explicit scanner-level findings or low-level scan inspection. Prefer `aidisk_workspace_explain` for general questions about why storage is growing or the workspace is full. Use its `category` only when the user asks for a focused area; do not provide rules, policy, root, reports, or executable paths.
-6. Call `ai_model_inventory` only for explicit model-asset or model-inventory questions, or inspection of known AI model files. Only use the optional `tool` selector. Treat unknown, incomplete, custom, shared, or credential-adjacent assets conservatively.
-7. Call `latest_diff` when the user asks what changed recently. Core owns snapshot discovery and diff semantics.
-8. Explain findings with Core evidence. Preserve partial status, warning text, and bounded-output markers; do not turn handling or risk evidence into cleanup authorization.
+1. Complete the package setup and verification path in [`docs/I3_SELF_SERVICE.md`](../../docs/I3_SELF_SERVICE.md) before asking for a natural storage diagnosis. Keep Claude Code in the `safe-alpha-v1` profile.
+2. For a natural storage diagnosis such as why the computer is getting full, call `aidisk_workspace_explain` as the primary entry point with `{}` and no `category` field. Its handler performs the capability compatibility check internally.
+3. Supply `aidisk_workspace_explain.category` only when the user explicitly requests a focused, named Core category. Preserve the user's requested category without guessing a different value.
+4. Use `aidisk_capabilities` for explicit capability inspection or compatibility troubleshooting, such as what AI Disk Doctor supports or whether the Core contract/schema is available. It is not required before `aidisk_workspace_explain`.
+5. Call `core_status` when the Core may be missing or the environment is unfamiliar. If workspace explain reports an unavailable or incompatible Core, report that diagnostic state and stop.
+6. Use `scan_summary` for explicit scanner-level findings or low-level scan inspection. Prefer `aidisk_workspace_explain` for general questions about why storage is growing or the workspace is full. Use its `category` only when the user asks for a focused area; do not provide rules, policy, root, reports, or executable paths.
+7. Call `ai_model_inventory` only for explicit model-asset or model-inventory questions, or inspection of known AI model files. Only use the optional `tool` selector. Treat unknown, incomplete, custom, shared, or credential-adjacent assets conservatively.
+8. Call `latest_diff` when the user asks what changed recently. Core owns snapshot discovery and diff semantics.
+9. Explain findings with Core evidence. Preserve partial status, warning text, and bounded-output markers; do not turn handling or risk evidence into cleanup authorization.
 
 ## Safety Rules
 
@@ -63,7 +64,7 @@ Do not promise reclaimable space unless the Core explicitly reports an estimate.
 
 Use the local stdio MCP server from the Agent's documented configuration surface. For natural storage diagnosis, call `aidisk_workspace_explain({})`; do not add a category. Use `aidisk_capabilities` separately for explicit capability inspection or compatibility troubleshooting, not as a required preflight. The I1.4 validation record is in `docs/compatibility/i1-agent-validation.md`.
 
-This Skill is read-only. It exposes no cleanup, delete, restore, quarantine, shell, arbitrary filesystem, telemetry, or cloud operation. Do not invent vendor-specific configuration fields for clients whose local MCP contract has not been verified. If a client is unavailable, use the shared MCP protocol validation result only as protocol evidence, not as a claim of client registration support.
+This Skill is read-only. It exposes no cleanup, delete, restore, quarantine, shell, arbitrary filesystem, telemetry, or cloud operation. The I3 safe Alpha profile additionally denies Claude Code Bash, Edit, Write, NotebookEdit, Agent, WebFetch, and WebSearch tools. Do not invent vendor-specific configuration fields for clients whose local MCP contract has not been verified. If a client is unavailable, use the shared MCP protocol validation result only as protocol evidence, not as a claim of client registration support.
 
 For the safety model, tool semantics, examples, and compatibility details, load the linked references only when needed:
 
