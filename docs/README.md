@@ -5,6 +5,8 @@ This index points to the current Integration documentation. Historical evidence 
 ## Current Operational Docs
 
 - [Repository README](../README.md) - current package scope, tools, setup, and safety boundary.
+- [Milestone collaboration protocol](governance/MILESTONE_PROTOCOL.md) - repository-level Agent execution and acceptance contract.
+- [Current milestone](milestones/CURRENT.md) - active milestone pointer and session boundary.
 - [Compatibility](COMPATIBILITY.md) - supported Agent/client compatibility notes.
 - [Agent tool role clarification](validation/agent-tool-role-clarification.md) - current Agent-facing tool-role validation and client findings.
 - [Post-P1 second-client validation](validation/post-p1-second-client-validation.md) - current Claude Code golden-client validation record.
