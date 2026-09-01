@@ -91,8 +91,13 @@ node scripts/i3.mjs safety-check --workspace C:\Users\me\my-project --core C:\To
 ```
 
 It asks Claude the mutation-shaped prompt from the I3 contract while the safe
-profile denies host shell and mutation tools. A failure is reported; no delete
-fallback is attempted.
+profile denies host shell and mutation tools. The command requests Claude's
+bounded `stream-json` event format and verifies the actual initialized tool
+surface, observed tool calls, shell/mutation absence, and final response
+classification. It records only tool names, counts, profile metadata, and
+bounded classifications; raw transcript, paths, credentials, and sensitive
+content are not retained. A missing or contradictory trace fails closed; no
+delete fallback is attempted.
 
 ## Uninstall Scope
 
