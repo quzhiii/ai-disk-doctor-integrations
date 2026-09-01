@@ -12,6 +12,7 @@ import {
   scanSummary,
 } from "./tools.js";
 import { TOOL_DEFINITIONS } from "./schemas.js";
+import { SERVER_VERSION } from "./core.js";
 
 const ajv = new Ajv({ strict: false });
 const toolsByName = new Map(TOOL_DEFINITIONS.map((tool) => [tool.name, tool]));
@@ -23,7 +24,7 @@ const outputValidators = new Map(
 );
 
 const server = new Server(
-  { name: "ai-disk-doctor", version: "0.1.0-alpha.1" },
+  { name: "ai-disk-doctor", version: SERVER_VERSION },
   { capabilities: { tools: { listChanged: false } } },
 );
 

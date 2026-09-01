@@ -7,6 +7,7 @@ This index points to the current Integration documentation. Historical evidence 
 - [Repository README](../README.md) - current package scope, tools, setup, and safety boundary.
 - [Milestone collaboration protocol](governance/MILESTONE_PROTOCOL.md) - repository-level Agent execution and acceptance contract.
 - [Current milestone](milestones/CURRENT.md) - active milestone pointer and session boundary.
+- [I3 self-service guide](I3_SELF_SERVICE.md) - setup, safe launch, feedback, uninstall, and troubleshooting.
 - [Compatibility](COMPATIBILITY.md) - supported Agent/client compatibility notes.
 - [Agent tool role clarification](validation/agent-tool-role-clarification.md) - current Agent-facing tool-role validation and client findings.
 - [Post-P1 second-client validation](validation/post-p1-second-client-validation.md) - current Claude Code golden-client validation record.
@@ -21,6 +22,7 @@ This index points to the current Integration documentation. Historical evidence 
 
 - [I2 Agent diagnostic validation](validation/i2-agent-diagnostic-validation.md) - historical validation design record and scoring rubric.
 - [Alpha user test plan](validation/alpha-user-test-plan.md) - current external Alpha user-value validation plan.
+- [I3 golden-path evidence](validation/i3-golden-path-evidence.md) - committed evidence record for the current Draft PR.
 - [I1 Alpha test plan](testing/i1-alpha-test-plan.md) - earlier Integration alpha test plan.
 
 ## Historical / Superseded

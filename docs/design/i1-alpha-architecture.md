@@ -1,4 +1,4 @@
-# I1 Alpha Architecture
+# I1 Alpha Architecture (Historical)
 
 Status: Superseded for the runtime boundary by `i1-explain-storage-boundary.md`. This pre-implementation architecture note remains as historical planning context.
 

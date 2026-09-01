@@ -1,4 +1,4 @@
-# I1 MCP Runtime
+# I1 MCP Runtime (Historical)
 
 Status: Superseded by the I1.3 explain runtime adapter. This retains the I1.1 capability-discovery design context.
 
@@ -48,7 +48,7 @@ aidisk capabilities --json
 
 The current Core contract is `agent-capabilities-v1`, schema version `1`. The future explainability readiness gate requires:
 
-- contract source reviewed at Core revision `cac502f73c39f1b5de13bab3e4de86a5c29684fc`;
+- Historical contract source reviewed at Core revision `cac502f73c39f1b5de13bab3e4de86a5c29684fc`; current runtime baseline is the official v1.8.0 release at `3e3f38535af74dcb168c7c1f01773a1b80fee052`;
 
 - the Core executable and command response are available;
 - the capabilities envelope is recognized;

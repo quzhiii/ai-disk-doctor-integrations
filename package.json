@@ -10,10 +10,17 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check src/core.js && node --check src/tools.js && node --check src/schemas.js && node --check adapters/core/capabilities.js && node --check adapters/core/explain.js && node --check mcp/projection/capabilities.js && node --check mcp/projection/workspace-explain.js && node --check mcp/server/compatibility.js && node --check mcp/tools/aidisk-capabilities.js && node --check mcp/tools/aidisk-workspace-explain.js"
+    "setup": "node scripts/i3.mjs setup",
+    "verify": "node scripts/i3.mjs verify",
+    "feedback": "node scripts/i3.mjs feedback",
+    "safety-check": "node scripts/i3.mjs safety-check",
+    "uninstall": "node scripts/i3.mjs uninstall",
+    "alpha": "node scripts/i3.mjs launch",
+    "check": "node --check scripts/i3.mjs && node --check src/server.js && node --check src/core.js && node --check src/tools.js && node --check src/schemas.js && node --check adapters/core/capabilities.js && node --check adapters/core/explain.js && node --check mcp/projection/capabilities.js && node --check mcp/projection/workspace-explain.js && node --check mcp/server/compatibility.js && node --check mcp/tools/aidisk-capabilities.js && node --check mcp/tools/aidisk-workspace-explain.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
-    "ajv": "8.20.0"
+    "ajv": "8.20.0",
+    "fflate": "0.8.2"
   }
 }

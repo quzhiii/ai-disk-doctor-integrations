@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 
 export const SERVER_VERSION = "0.1.0-alpha.2";
-export const TESTED_CORE_REVISION = "cac502f73c39f1b5de13bab3e4de86a5c29684fc";
-export const TESTED_CORE_VERSION = "1.7.0";
+export const TESTED_CORE_REVISION = "3e3f38535af74dcb168c7c1f01773a1b80fee052";
+export const TESTED_CORE_VERSION = "1.8.0";
 export const SERVER_MODE = "non-destructive-diagnostic";
 export const CORE_TIMEOUT_MS = 120_000;
 export const MAX_CORE_STDOUT_BYTES = 4 * 1024 * 1024;

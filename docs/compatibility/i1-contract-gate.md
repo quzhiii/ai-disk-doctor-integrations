@@ -1,6 +1,7 @@
-# I1 Contract Gate
+# I1 Contract Gate (Historical)
 
-Status: Implemented by `aidisk_workspace_explain` for the pinned Core contract. This document records the gate requirements.
+Status: Historical I1 gate requirements. The current runtime baseline is
+official Core v1.8.0 and the current milestone contract is I3.
 
 Date: 2026-08-21
 

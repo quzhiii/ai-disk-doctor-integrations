@@ -1,4 +1,7 @@
-# Post-P1 Second-Client Validation (Claude Code)
+# Historical Post-P1 Second-Client Validation (Claude Code)
+
+This is historical pre-official-release evidence. It does not define the
+current I3 runtime baseline; current I3 evidence uses official Core v1.8.0.
 
 Status: completed cross-client validation. No Integration code, MCP schema, tool description, Skill, timeout, Core contract, cleanup, restore, quarantine, Desktop, telemetry, or billing behavior was changed.
 
@@ -13,7 +16,7 @@ Date: 2026-08-27
 | OS | Windows |
 | Repository | `quzhiii/ai-disk-doctor-integrations` |
 | Branch HEAD | `29d0c68fa2d1e6898fd03e1de1df94dd0d2d0cea` (branch `research/i1-alpha-preparation`) |
-| Core baseline | merged P1 Core `20d90a3febe63607112b920f48d1e3ca3cdaa6ca`, local release build |
+| Core baseline | Historical merged P1 Core `20d90a3febe63607112b920f48d1e3ca3cdaa6ca`, local release build |
 | Model/provider reported by sessions | `GLM-5.2` / `glm-5.3` (via `asxs` API key routing configured on this machine; not Anthropic's own model) |
 
 MCP was registered with `claude mcp add-json ai-disk-doctor <json> --scope local`, then invoked headlessly via `--mcp-config .mcp.json --strict-mcp-config`-style JSON config pointing `AIDISK_EXE` at the merged Core binary. `.mcp.json` contains a machine-specific absolute path and is not committed (confirmed untracked, excluded from this change).
@@ -41,7 +44,7 @@ Direct Core smoke (already established in the P1 merge validation, reused here a
 
 | Command | Duration | Result |
 |---|---:|---|
-| `aidisk capabilities --json` | `0.179s` | `ok=true`, Core `1.7.0` |
+| `aidisk capabilities --json` | `0.179s` | `ok=true`, historical Core `1.7.0` |
 | `aidisk explain --json --snapshot skip` | `65.977s` | `evidence_status=complete` |
 
 This confirms the merged Core is the same instance used for the OpenCode post-P1 validation, satisfying the requirement to test against merge SHA `20d90a3f...`.

@@ -26,7 +26,8 @@ Runtime evidence:
 - tool count remained `6`;
 - tool names remained `aidisk_capabilities`, `aidisk_workspace_explain`, `core_status`, `scan_summary`, `ai_model_inventory`, and `latest_diff`;
 - model-facing input properties remained `category?` for workspace explain and scan summary, `tool?` for model inventory, and no properties for the other tools;
-- `CORE_TIMEOUT_MS` remains `120000`;
+- Historical pre-official-release evidence used `CORE_TIMEOUT_MS=180000`. The current I3 safe Alpha path uses `120000` against official Core v1.8.0 because the P1 traversal fix is included.
+  Core explain command can take longer than two minutes on a real workspace.
 - the description-excluded tool registry fingerprint remains `96da5d6815dd01f53d2a979816f5c0acaf4dafe7d53bd8daa9ccae2dc919b93e`;
 - a fake-Core regression test proves incompatible capability evidence returns `contract_unavailable` and does not invoke explain;
 - the existing fixed-argv tests continue to prove the Core command surface.

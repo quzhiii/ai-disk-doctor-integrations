@@ -6,7 +6,7 @@ Sources are linked to official vendor documentation. Availability is based on th
 
 ## Core compatibility state
 
-- Tested baseline: AI Disk Doctor Core v1.7.0 at `cac502f73c39f1b5de13bab3e4de86a5c29684fc`.
+- Tested baseline: AI Disk Doctor Core v1.8.0 release at `3e3f38535af74dcb168c7c1f01773a1b80fee052`.
 - I1.4 validates Agent consumption of the I1.3 MCP surface. It consumes `aidisk capabilities --json` for compatibility discovery, then `aidisk explain --json --snapshot skip` with an optional validated category selector. It requires `agent-capabilities-v1`, `agent-diagnostic-cli-v1`, and `explainability-v1` schema `1`.
 - Runtime compatibility is checked by `core_status`. The tested revision is provenance; current Core binaries do not prove an exact git revision at runtime.
 
