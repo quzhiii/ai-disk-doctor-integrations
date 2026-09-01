@@ -42,27 +42,31 @@ jobs:
       - run: cargo fmt --manifest-path spikes/rust-direct-core/Cargo.toml -- --check
       - run: cargo run --manifest-path spikes/rust-direct-core/Cargo.toml
 
-  pinned-core-smoke:
-    name: pinned-core-aidisk-smoke
+  official-core-smoke:
+    name: official-core-aidisk-smoke
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Integration
         uses: actions/checkout@v4
-      - name: Checkout tested Core baseline
-        uses: actions/checkout@v4
-        with:
-          repository: quzhiii/ai-disk-doctor
-          ref: cac502f73c39f1b5de13bab3e4de86a5c29684fc
-          path: pinned-core
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
-      - name: Build tested Core binary
-        run: cargo build --manifest-path pinned-core/aidisk/Cargo.toml --bin aidisk
-      - name: Real AIDISK_EXE smoke against tested Core baseline
+      - name: Download official Core release artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aidisk"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/quzhiii/ai-disk-doctor/releases/download/v1.8.0/aidisk-v1.8.0-x86_64-unknown-linux-gnu.tar.gz" \
+            --output "$RUNNER_TEMP/aidisk/aidisk-v1.8.0-x86_64-unknown-linux-gnu.tar.gz"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/quzhiii/ai-disk-doctor/releases/download/v1.8.0/aidisk-v1.8.0-x86_64-unknown-linux-gnu.sha256" \
+            --output "$RUNNER_TEMP/aidisk/aidisk.sha256"
+          (cd "$RUNNER_TEMP/aidisk" && sha256sum --check aidisk.sha256)
+          tar -xzf "$RUNNER_TEMP/aidisk/aidisk-v1.8.0-x86_64-unknown-linux-gnu.tar.gz" -C "$RUNNER_TEMP/aidisk"
+      - name: Real AIDISK_EXE smoke against official Core release baseline
         env:
-          AIDISK_EXE: ${{ github.workspace }}/pinned-core/aidisk/target/debug/aidisk
+          AIDISK_EXE: ${{ runner.temp }}/aidisk/aidisk-v1.8.0-x86_64-unknown-linux-gnu/aidisk
         run: npm test

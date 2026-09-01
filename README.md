@@ -4,7 +4,7 @@ Universal local Agent Skill and non-destructive diagnostic MCP server for [AI Di
 
 This repository is an integration and distribution layer. It does not implement a second scanner, cleaner, risk engine, recovery model, policy system, history engine, or explainability engine. The local Core remains the execution and policy source of truth.
 
-## Alpha Scope
+## Current Alpha Scope
 
 The MCP server exposes six tools:
 
@@ -17,11 +17,11 @@ The MCP server exposes six tools:
 | `ai_model_inventory` | Run `aidisk models inventory --json` with Core defaults and return bounded assets | `tool?` | None intended |
 | `latest_diff` | Run Core-owned `aidisk diff --latest --json` and return bounded changes | None | None |
 
-I1.3 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, or arbitrary filesystem mutation tool. `aidisk_workspace_explain` is read-only and invokes only `aidisk explain --json --snapshot skip` with an optional validated category selector.
+The current Alpha exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arbitrary executable, arbitrary rules/policy path, arbitrary reports directory, or arbitrary filesystem mutation tool. `aidisk_workspace_explain` is read-only and invokes only `aidisk explain --json --snapshot skip` with an optional validated category selector.
 
-### Core state used by I0.1
+### Current Core Baseline
 
-- Tested Core baseline: v1.7.0 at `cac502f73c39f1b5de13bab3e4de86a5c29684fc`.
+- Tested Core baseline: v1.8.0 release at `3e3f38535af74dcb168c7c1f01773a1b80fee052`.
 - Pinned Core provides `agent-capabilities-v1` and `agent-diagnostic-cli-v1`, embedding `explainability-v1` schema `1` in the fixed `explain --json --snapshot skip` response.
 
 ## Install
@@ -29,8 +29,8 @@ I1.3 exposes no `clean`, `restore`, `quarantine`, `delete`, arbitrary shell, arb
 ### Prerequisites
 
 - Node.js 18 or newer.
-- AI Disk Doctor Core v1.7.0 on `PATH` as `aidisk`/`aidisk.exe`, or set `AIDISK_EXE`.
-- This integration is tested against Core revision `cac502f73c39f1b5de13bab3e4de86a5c29684fc`. Runtime compatibility is checked by `core_status` and the machine-readable `aidisk capabilities --json` contract; current Core binaries do not expose a runtime git revision, so the exact revision is not claimed from runtime detection.
+- AI Disk Doctor Core v1.8.0 on `PATH` as `aidisk`/`aidisk.exe`, or set `AIDISK_EXE`. On Windows x86_64, I3 setup can acquire the official release automatically when neither is supplied.
+- This integration is tested against Core release v1.8.0 at `3e3f38535af74dcb168c7c1f01773a1b80fee052`. Runtime compatibility is checked by `core_status` and the machine-readable `aidisk capabilities --json` contract; current Core binaries do not expose a runtime git revision, so the exact revision is recorded as release provenance rather than claimed from runtime detection.
 
 Install from a checkout:
 
@@ -50,8 +50,8 @@ verification commands documented in [`docs/I3_SELF_SERVICE.md`](docs/I3_SELF_SER
 
 ```powershell
 npm install
-npm run setup -- --workspace C:\path\to\workspace --core C:\path\to\aidisk.exe
-npm run verify -- --workspace C:\path\to\workspace --core C:\path\to\aidisk.exe
+node scripts/i3.mjs setup --workspace C:\path\to\workspace --core C:\path\to\aidisk.exe
+node scripts/i3.mjs verify --workspace C:\path\to\workspace --core C:\path\to\aidisk.exe
 ```
 
 Setup refuses to overwrite an unowned same-name Claude registration. The safe
@@ -139,7 +139,7 @@ cargo fmt --manifest-path spikes/rust-direct-core/Cargo.toml -- --check
 cargo run --manifest-path spikes/rust-direct-core/Cargo.toml
 ```
 
-For a real Core smoke, install/build the pinned Core revision `cac502f73c39f1b5de13bab3e4de86a5c29684fc`, set `AIDISK_EXE` to that binary, and run `npm test`. CI includes a pinned-Core `AIDISK_EXE` smoke in addition to protocol-only Node tests and the Rust direct-Core spike.
+For a real Core smoke, use the official Core v1.8.0 release or build release baseline `3e3f38535af74dcb168c7c1f01773a1b80fee052`, set `AIDISK_EXE` to that binary, and run `npm test`. CI includes a current-release `AIDISK_EXE` smoke in addition to protocol-only Node tests and the Rust direct-Core spike.
 
 ## License
 

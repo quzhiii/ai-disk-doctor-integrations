@@ -1,8 +1,10 @@
-# I0 Read-Only Scan Contract Gap
+# I0 Read-Only Scan Contract Gap (Historical)
 
 Date: 2026-08-19
 
-I0.1 tested Public Core baseline: `52f31509394d2165cba8908da00a1036ba90479d`
+Historical I0.1 tested Public Core baseline:
+`52f31509394d2165cba8908da00a1036ba90479d`. The current I3 runtime baseline
+is official Core v1.8.0 at `3e3f38535af74dcb168c7c1f01773a1b80fee052`.
 
 Latest merged Public Core reviewed during final I0.1 review: `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7` (M1C `explainability-v1`).
 

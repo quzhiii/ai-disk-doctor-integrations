@@ -1,4 +1,4 @@
-# ADR-0002: Runtime Boundary Reassessment
+# ADR-0002: Runtime Boundary Reassessment (Historical)
 
 Status: Proposed
 
@@ -6,7 +6,10 @@ Date: 2026-08-19
 
 ## Context
 
-I0 shipped a Node.js stdio MCP server over fixed AI Disk Doctor Core CLI JSON contracts. I0.1 reassesses whether production should remain on the CLI boundary or migrate to a Rust MCP binary that depends on the public Core application boundary.
+This is a historical I0/I0.1 runtime-boundary assessment. I0 shipped a
+Node.js stdio MCP server over fixed AI Disk Doctor Core CLI JSON contracts.
+The current I3 runtime consumes the official v1.8.0 explainability CLI release
+contract documented in the milestone evidence.
 
 The I0.1 spike and production compatibility baseline remain pinned to merged public Core revision `52f31509394d2165cba8908da00a1036ba90479d`. The latest merged Public Core reviewed during final I0.1 review is `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, which merged M1C `explainability-v1`. That newer Core state is not consumed by I0.1.
 
@@ -78,7 +81,7 @@ Distribution evidence:
 CI evidence in this branch:
 
 - `rust-spike` CI job runs the spike on Windows, macOS, and Ubuntu.
-- `pinned-core-smoke` builds Core at the I0.1 tested revision and runs the real `AIDISK_EXE` Node smoke on Ubuntu.
+- Historical `pinned-core-smoke` built Core at the I0.1 tested revision and ran the real `AIDISK_EXE` Node smoke on Ubuntu.
 - This proves compile/run behavior for the proof-of-concept and pinned CLI boundary, not marketplace packaging readiness.
 
 ## M1C Explainability Architecture Input
@@ -90,7 +93,11 @@ At that merged Core state, explainability is exposed through the Rust applicatio
 - `run_explainable_scan`
 - `run_explainable_scan_with_progress`
 
-The current Core CLI does **not** expose an explainability CLI contract. I0.1 therefore does not add `explain_storage` or any other explainability MCP tool and remains tested against `52f31509394d2165cba8908da00a1036ba90479d`. The merged application-boundary capability is architecture input for the next milestone: that milestone must explicitly choose and test a supported consumption boundary instead of projecting an unversioned Integration-side contract.
+The historical I0.1 Core CLI did **not** expose an explainability CLI contract.
+I0.1 therefore did not add `explain_storage` or any other explainability MCP
+tool and remained tested against `52f31509394d2165cba8908da00a1036ba90479d`.
+The merged application-boundary capability was architecture input for the next
+milestone; the later I3 runtime now consumes the official v1.8.0 CLI contract.
 
 ## Comparison
 

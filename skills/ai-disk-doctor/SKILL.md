@@ -2,7 +2,7 @@
 name: ai-disk-doctor
 description: Diagnose AI and developer workspace storage with AI Disk Doctor's local Core. Use when asking why a disk is full, which AI tools or model caches consume space, what changed recently, what Core evidence supports a classification, or what should be reviewed safely.
 license: MIT OR Apache-2.0
-compatibility: Tested against AI Disk Doctor Core v1.7.0 at the I3 self-service Alpha baseline. Workspace explain performs its own runtime compatibility gate. Requires an MCP-compatible Agent client; scan_summary may persist a Core-owned snapshot.
+compatibility: Tested against the official AI Disk Doctor Core v1.8.0 release at baseline 3e3f38535af74dcb168c7c1f01773a1b80fee052. Workspace explain performs its own runtime compatibility gate. Requires an MCP-compatible Agent client; scan_summary may persist a Core-owned snapshot.
 metadata:
   integration: ai-disk-doctor-integrations
   safety: non-destructive-diagnostic-alpha

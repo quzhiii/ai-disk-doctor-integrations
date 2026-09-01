@@ -1,4 +1,4 @@
-# I1 Alpha Test Plan
+# I1 Alpha Test Plan (Historical)
 
 Status: I1.3 baseline implemented. This document retains future coverage goals beyond the current adapter tests.
 

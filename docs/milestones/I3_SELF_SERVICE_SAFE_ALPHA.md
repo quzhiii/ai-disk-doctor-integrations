@@ -32,6 +32,7 @@ tested client/configuration limitation and is not the first Alpha golden path.
 
 - Windows-first self-service Alpha;
 - setup and prerequisite detection;
+- official v1.8.0 Windows x86_64 Core acquisition when no compatible Core is supplied;
 - MCP configuration and Core compatibility verification;
 - safe Alpha launch/profile;
 - diagnosis and explanation;
@@ -54,13 +55,18 @@ tested client/configuration limitation and is not the first Alpha golden path.
 
 Current Integration runtime truth includes a local stdio MCP server, bounded
 Core projections, Core compatibility checks, a working read-only safety
-boundary, and Claude Code as the first Alpha client. The existing Alpha user
+boundary, and Claude Code as the first Alpha client. The current Core runtime
+baseline is official v1.8.0 at accepted release merge SHA
+`3e3f38535af74dcb168c7c1f01773a1b80fee052`. On Windows x86_64, setup may
+acquire only the fixed official v1.8.0 release artifact after checksum
+verification. The existing Alpha user
 test plan is the product-validation source for the user-value context. Older
 validation records do not override current runtime truth.
 
 ## Constraints
 
 - Use the current released or pinned compatible Core.
+- Automatic acquisition is HTTPS-only, pinned to the official Core v1.8.0 Windows x86_64 release artifact and its published SHA-256; mismatches fail closed.
 - Reuse Core for execution and policy; do not reimplement Core.
 - Keep the Integration layer thin, local-first, and evidence-based.
 - Do not require owner edits to user JSON or filesystem paths in the golden path.

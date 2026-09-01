@@ -1,4 +1,4 @@
-# I1 Explain Storage Boundary
+# I1 Explain Storage Boundary (Historical Context)
 
 Status: I1.3 runtime adapter implemented against the pinned Core `agent-diagnostic-cli-v1` and `explainability-v1` contracts.
 

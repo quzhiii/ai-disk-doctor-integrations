@@ -1,12 +1,14 @@
 # I1 Alpha Release Gate
 
-Status: PASS for the I1 Alpha non-destructive Agent integration boundary.
+Status: Historical PASS for the I1 Alpha non-destructive Agent integration boundary.
 
 Date: 2026-08-24
 
 ## Decision
 
-I1 Alpha is complete as a local, read-only diagnostic integration. The release gate passes for the pinned Core contract and the validated MCP/Agent boundary.
+I1 Alpha was complete as a local, read-only diagnostic integration. This is a
+historical gate record; current runtime truth is official Core v1.8.0 and the
+current milestone is I3 Self-Service Safe Alpha.
 
 This gate does not authorize M2, Desktop work, cleanup, restore, quarantine, delete, shell, commercial, telemetry, cloud, account, or billing features.
 
@@ -30,13 +32,16 @@ Integration does not recreate or reinterpret those semantics. The pinned Core ba
 repository: quzhiii/ai-disk-doctor
 commit: cac502f73c39f1b5de13bab3e4de86a5c29684fc
 version: v1.7.0
+
+Historical I1 release-gate record only. Current runtime baseline is official
+Core v1.8.0 at `3e3f38535af74dcb168c7c1f01773a1b80fee052`.
 ```
 
 ### Integration Boundary
 
 The Node process provides local MCP stdio transport, narrow model-facing schemas, fixed Core argv construction, subprocess timeout/output bounds, capability compatibility checks, and bounded Agent-facing projections.
 
-The only explain execution paths are:
+The only explain execution paths in the historical I1 boundary were:
 
 ```text
 aidisk capabilities --json
@@ -174,7 +179,7 @@ The local fake-Core tests cover exact argv, malformed/unavailable/incompatible C
 
 ### CI Evidence
 
-The CI workflow covers:
+The historical CI workflow covered:
 
 - Node 18 on Windows, macOS, and Ubuntu;
 - Node 20 on Ubuntu;

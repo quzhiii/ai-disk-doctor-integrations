@@ -1,6 +1,6 @@
 # ADR-0001: Thin Local MCP Adapter Over the Core CLI Contract
 
-Status: Accepted for I0/I0.1 Alpha, pending ADR-0002 reassessment
+Status: Historical record for I0/I0.1 Alpha; current runtime baseline is recorded below
 
 Date: 2026-08-19
 
@@ -33,7 +33,7 @@ AI Disk Doctor Core CLI
 existing rules / policy / scanner / model inventory / history
 ```
 
-The server reports its own version and the tested Core revision in `core_status`. It verifies the required command surface with subcommand help probes and records whether `aidisk --version` is supported and parseable. The tested revision is provenance, not runtime identity, because current Core binaries do not expose a git revision. A reported Core version other than the pinned v1.7.0 baseline is marked incompatible rather than silently accepted. `AIDISK_EXE` allows explicit binary selection; otherwise `aidisk` is resolved through the host process `PATH`.
+The server reports its own version and the tested Core release baseline in `core_status`. It verifies the required command surface with subcommand help probes and records whether `aidisk --version` is supported and parseable. The release baseline is provenance, not runtime identity, because current Core binaries do not expose a git revision. A reported Core version other than the pinned v1.8.0 baseline is marked incompatible rather than silently accepted. `AIDISK_EXE` allows explicit binary selection; otherwise `aidisk` is resolved through the host process `PATH`.
 
 The server mode is `non-destructive-diagnostic`, not `read-only`, because `scan_summary` may persist a Core-owned snapshot even though it exposes no destructive action against user/workspace files.
 
@@ -65,11 +65,14 @@ The server has no arbitrary shell, delete, clean, quarantine, restore, or mutati
 - `core_status`, `ai_model_inventory`, `latest_diff`: `readOnlyHint: true`
 - `scan_summary`: `readOnlyHint: false`, `destructiveHint: false`, because current Core scan saves a snapshot
 
-M1C `explainability-v1` is now merged in Public Core at `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`. I0.1 does not consume it: the tested integration baseline remains `52f31509394d2165cba8908da00a1036ba90479d`, no explainability MCP tool is exposed, and the current Core CLI has no explainability CLI contract.
+Historical note: M1C `explainability-v1` was initially merged in Public Core at
+`33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`, before the official v1.8.0 CLI
+contract was consumed by the later I3 runtime. The I0.1 statements above are
+historical and do not describe the current Alpha surface.
 
 ## Compatibility Contract
 
-The integration pins and tests against Core v1.7.0 at commit `52f31509394d2165cba8908da00a1036ba90479d`. The latest merged Core reviewed during I0.1 is `33d741130b9c2bdd386cb96a25e0f7c70dd1bce7`; that newer revision is architecture input, not the tested runtime baseline. Runtime statuses distinguish `compatible-unverified`, `incompatible`, and `unavailable`; `tested` is reserved for a future Core identity mechanism that proves the exact revision.
+The integration pins and tests against the official Core v1.8.0 release at accepted baseline `3e3f38535af74dcb168c7c1f01773a1b80fee052`. Runtime statuses distinguish `compatible-unverified`, `incompatible`, and `unavailable`; `tested` is reserved for a future Core identity mechanism that proves the exact revision.
 
 ## Future Mutation Design Only
 

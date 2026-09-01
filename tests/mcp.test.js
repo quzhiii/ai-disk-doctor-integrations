@@ -21,6 +21,13 @@ import {
   buildRemoveArgs,
   quoteWindowsArgument,
   createFeedbackReceipt,
+  acquireOfficialCore,
+  OFFICIAL_CORE_ARTIFACT,
+  OFFICIAL_CORE_ARTIFACT_SHA256,
+  OFFICIAL_CORE_CHECKSUM_ARTIFACT,
+  OFFICIAL_CORE_RELEASE_TAG,
+  STATE_OWNERSHIP_MARKER,
+  STATE_SCHEMA,
   safeLaunchArgs,
   safeSpotCheck,
   setup as setupAlpha,
@@ -79,7 +86,7 @@ function capabilitiesFixture(overrides = {}) {
     command: "capabilities",
     contract: "agent-capabilities-v1",
     schema_version: 1,
-    core_version: "1.7.0",
+    core_version: "1.8.0",
     capabilities: {
       explainability: {
         contract: "explainability-v1",
@@ -99,7 +106,7 @@ function explainFixture(overrides = {}) {
     command: "explain",
     contract: "agent-diagnostic-cli-v1",
     schema_version: 1,
-    core_version: "1.7.0",
+    core_version: "1.8.0",
     snapshot: { requested: "skip", persisted: false, path: null },
     explainability: {
       contract: "explainability-v1",
@@ -161,7 +168,7 @@ function diffFixture() {
   return { generated_at: "now", before: "a", after: "b", summary: {}, changes: [] };
 }
 
-test("tool registry exposes only the hardened I0.1 non-destructive surface", () => {
+test("tool registry exposes only the hardened non-destructive surface", () => {
   assert.deepEqual(toolNames(), [
     "aidisk_capabilities",
     "aidisk_workspace_explain",
@@ -219,7 +226,7 @@ console.log(JSON.stringify(${JSON.stringify(capabilitiesFixture())}));
   assert.equal(schema(result), true);
   assert.equal(result.ok, true);
   assert.equal(result.tool, "aidisk_capabilities");
-  assert.equal(result.core_version, "1.7.0");
+  assert.equal(result.core_version, "1.8.0");
   assert.equal(result.contracts[0].name, "explainability-v1");
   assert.equal(result.integration_status.compatible, true);
   assert.deepEqual(result.provenance.command, ["capabilities", "--json"]);
@@ -357,7 +364,7 @@ test("description intervention preserves the registered runtime contract", () =>
   assert.equal(byName.get("aidisk_workspace_explain").annotations.destructiveHint, false);
   assert.equal(byName.get("scan_summary").annotations.readOnlyHint, false);
   assert.equal(byName.get("scan_summary").annotations.destructiveHint, false);
-   assert.equal(CORE_TIMEOUT_MS, 180_000);
+   assert.equal(CORE_TIMEOUT_MS, 120_000);
   assert.doesNotThrow(() => validateCoreArgv(["capabilities", "--json"]));
   assert.doesNotThrow(() => validateCoreArgv(["explain", "--json", "--snapshot", "skip"]));
   assert.doesNotThrow(() => validateCoreArgv(["explain", "--json", "--snapshot", "skip", "--category", "ai-agents"]));
@@ -856,6 +863,23 @@ test("pinned Core explain smoke skips snapshot persistence", async (t) => {
   await assert.rejects(() => readdir(join(workspace, ".aidisk", "reports")), /ENOENT/);
 });
 
+test("MCP server advertises the package runtime version", async () => {
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [join(process.cwd(), "src", "server.js")],
+    env: { ...process.env, AIDISK_EXE: "definitely-not-aidisk-executable" },
+    cwd: process.cwd(),
+    stderr: "pipe",
+  });
+  const client = new Client({ name: "version-test", version: "1.0.0" });
+  try {
+    await client.connect(transport);
+    assert.equal(client.getServerVersion().version, "0.1.0-alpha.2");
+  } finally {
+    await client.close();
+  }
+});
+
 test("I3 safe profile allows only the diagnostic MCP tools", () => {
   const args = safeLaunchArgs({ configPath: "C:/temp/mcp.json", prompt: "hello" });
   assert.deepEqual(args.slice(0, 4), ["--strict-mcp-config", "--mcp-config", "C:/temp/mcp.json", "--tools"]);
@@ -864,7 +888,7 @@ test("I3 safe profile allows only the diagnostic MCP tools", () => {
   assert.match(args[8], /Bash/);
   assert.match(args[8], /Write/);
   assert.equal(ALL_DIAGNOSTIC_TOOLS.some((tool) => FORBIDDEN_TOOL_PATTERN.test(tool)), false);
-  assert.equal(VERIFY_REQUEST_TIMEOUT_MS, 240_000);
+  assert.equal(VERIFY_REQUEST_TIMEOUT_MS, 125_000);
 });
 
 test("I3 setup registers a package-owned Claude server without exposing workspace paths", async () => {
@@ -927,6 +951,23 @@ test("I3 setup refuses to replace an unowned same-name Claude server", async () 
   );
 });
 
+test("I3 safe spot check forwards the supplied Claude command", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-claude-command-"));
+  const calls = [];
+  const commandRunner = async ({ command, args }) => {
+    calls.push({ command, args });
+    if (args[0] === "mcp" && args[1] === "get") {
+      return { code: 0, stdout: `Scope: Local config\nStatus: Connected\nType: stdio\nEnvironment:\n  AIDISK_INTEGRATION_MANAGED_BY=${OWNERSHIP_MARKER}\n  AIDISK_INTEGRATION_PROFILE=${PROFILE_NAME}\n`, stderr: "" };
+    }
+    if (command === "claude-under-test") return { code: 0, stdout: "safe-check-result", stderr: "" };
+    throw new Error(`unexpected command ${command}`);
+  };
+  const result = await safeSpotCheck({ workspace, core: process.execPath, claude: "claude-under-test", commandRunner });
+  assert.equal(result.ok, true);
+  assert.equal(calls.at(-1).command, "claude-under-test");
+  assert.match(calls.at(-1).args[calls.at(-1).args.indexOf("-p") + 1], /删掉最大的模型文件/);
+});
+
 test("I3 uninstall removes only an owned registration", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-uninstall-"));
   const calls = [];
@@ -964,7 +1005,7 @@ test("I3 feedback receipt is bounded and redacts workspace and Core paths", () =
   assert.equal(receipt.privacy.sharing_consent_required, true);
 });
 
-test("I3 feedback preparation does not run another Core diagnosis", async () => {
+test("I3 feedback preparation reflects the last real verify without running Core", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-feedback-"));
   let coreCalls = 0;
   let getCalls = 0;
@@ -980,16 +1021,100 @@ test("I3 feedback preparation does not run another Core diagnosis", async () => 
     if (args[0] === "capabilities") coreCalls += 1;
     throw new Error(`unexpected command ${args.join(" ")}`);
   };
+  const stateRoot = join(workspace, "state");
+  const setup = { ok: true, setup_duration_ms: 123, core: {
+    source: "official-release", ownership: "package-owned", version: "1.8.0", release_tag: "v1.8.0",
+    artifact: OFFICIAL_CORE_ARTIFACT, artifact_sha256: OFFICIAL_CORE_ARTIFACT_SHA256,
+    core_sha256: "a".repeat(64), executable_fingerprint: "a".repeat(64),
+  } };
+  const { writeFile: writeStateFile } = await import("node:fs/promises");
+  const crypto = await import("node:crypto");
+  const workspaceFingerprint = crypto.createHash("sha256").update(workspace).digest("hex").slice(0, 32);
+  const stateDirectory = join(stateRoot, workspaceFingerprint);
+  await mkdir(stateDirectory, { recursive: true });
+  const state = {
+    schema: STATE_SCHEMA, ownership_marker: STATE_OWNERSHIP_MARKER, workspace_fingerprint: workspaceFingerprint,
+    core: { ...setup.core, source: "user-supplied", ownership: "user-supplied", executable: process.execPath },
+    setup: { ok: true, duration_ms: 123 },
+    verification: { ok: true, status: "diagnosis_available", mcp_connected: true, tool_count: 6,
+      diagnosis_status: "complete", evidence_status: "partial", category: null, duration_ms: 456, diagnosis_duration_ms: 400 },
+  };
+  await writeStateFile(join(stateDirectory, "receipt-state.json"), JSON.stringify(state));
   const receipt = await (await import("../scripts/i3.mjs")).feedback({
     workspace,
     claude: "fake-claude",
     commandRunner,
+    stateRoot,
     out: join(workspace, "receipt.json"),
   });
   assert.equal(receipt.ok, true);
   assert.equal(receipt.status, "prepared");
+  assert.equal(receipt.outcome.diagnosis_status, "complete");
+  assert.equal(receipt.outcome.tool_count, 6);
+  assert.equal(receipt.outcome.diagnosis_duration_ms, 400);
   assert.equal(coreCalls, 0);
   assert.equal(getCalls, 1);
+});
+
+test("I3 feedback reports stale and corrupted state without pretending verification ran", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-stale-feedback-"));
+  const stateRoot = join(workspace, "state");
+  const fingerprint = createHash("sha256").update(workspace).digest("hex").slice(0, 32);
+  const directory = join(stateRoot, fingerprint);
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "receipt-state.json"), JSON.stringify({ schema: "wrong" }));
+  const result = await (await import("../scripts/i3.mjs")).feedback({
+    workspace,
+    stateRoot,
+    claude: "fake-claude",
+    commandRunner: async ({ args }) => args[0] === "mcp" && args[1] === "get"
+      ? { code: 1, stdout: "", stderr: "not configured" }
+      : { code: 0, stdout: "", stderr: "" },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "invalid_state");
+  assert.equal(result.outcome.diagnosis_status, "not_run");
+});
+
+test("I3 feedback rejects package-owned receipt state without a matching manifest", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-unbacked-feedback-"));
+  const stateRoot = join(workspace, "state");
+  const fingerprint = createHash("sha256").update(workspace).digest("hex").slice(0, 32);
+  const directory = join(stateRoot, fingerprint);
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "receipt-state.json"), JSON.stringify({
+    schema: STATE_SCHEMA, ownership_marker: STATE_OWNERSHIP_MARKER, workspace_fingerprint: fingerprint,
+    core: { ownership: "package-owned", executable: process.execPath },
+    verification: { diagnosis_status: "complete" },
+  }));
+  const result = await (await import("../scripts/i3.mjs")).feedback({
+    workspace,
+    stateRoot,
+    claude: "fake-claude",
+    commandRunner: async ({ args }) => args[0] === "mcp" && args[1] === "get"
+      ? { code: 0, stdout: `Scope: Local config\nStatus: Connected\nType: stdio\nEnvironment:\n  AIDISK_INTEGRATION_MANAGED_BY=${OWNERSHIP_MARKER}\n  AIDISK_INTEGRATION_PROFILE=${PROFILE_NAME}\n`, stderr: "" }
+      : { code: 0, stdout: "", stderr: "" },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "invalid_state");
+});
+
+test("I3 official Core acquisition pins release, verifies checksum, and writes ownership manifest", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aidisk-i3-acquire-"));
+  const stateRoot = join(workspace, "state");
+  const fakeZip = Buffer.from("not-a-zip");
+  const fetchImpl = async (url) => {
+    if (url.endsWith(OFFICIAL_CORE_CHECKSUM_ARTIFACT)) {
+      return { ok: true, text: async () => `${OFFICIAL_CORE_ARTIFACT_SHA256}  ${OFFICIAL_CORE_ARTIFACT}\n` };
+    }
+    return { ok: true, arrayBuffer: async () => fakeZip };
+  };
+  await assert.rejects(
+    () => acquireOfficialCore({ workspace, stateRoot, fetchImpl }),
+    /checksum verification failed/,
+  );
+  assert.equal((await readdir(stateRoot)).length, 1);
+  assert.equal((await readdir(join(stateRoot, (await readdir(stateRoot))[0]))).includes("manifest.json"), false);
 });
 
 test("I3 safety check fails closed before setup", async () => {
