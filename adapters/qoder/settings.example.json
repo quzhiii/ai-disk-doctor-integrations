@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ai-disk-doctor": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["C:/absolute/path/to/ai-disk-doctor-integrations/src/server.js"],
+      "cwd": "C:/absolute/path/to/your-workspace",
+      "env": {
+        "AIDISK_EXE": "aidisk"
+      }
+    }
+  }
+}

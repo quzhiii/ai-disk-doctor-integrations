@@ -2,6 +2,9 @@
 
 Last audited: 2026-08-24
 
+The Qoder row below was added on 2026-09-26 from a local validation. Every
+other row keeps its 2026-08-24 audit date and was not re-checked.
+
 Sources are linked to official vendor documentation. Availability is based on the local machine, not inference.
 
 ## Core compatibility state
@@ -14,6 +17,7 @@ Sources are linked to official vendor documentation. Availability is based on th
 |---|---|---:|---:|---:|---|---|---|---|
 | OpenCode | `opencode.json(c)` local MCP; copy Skill to `.opencode/skills`, `.claude/skills`, or `.agents/skills` | Yes | Yes, local stdio | Yes | Client-controlled; do not grant shell bypass | MCP tools become available automatically; use `opencode mcp list` | OpenCode 1.16.2, 2026-08-19 | verified locally: `OPENCODE_CONFIG_CONTENT=... opencode mcp list` returned `ai-disk-doctor connected`; SDK stdio smoke also passed |
 | Qwen Code | `qwen mcp add --transport stdio`; project Skill in `.qwen/skills`; root extension manifest | Yes | Yes, stdio | Yes | `trust` defaults false; keep false | `/mcp`, model-invoked Skill, or tool calls | Qwen Code 0.0.1-alpha.8, 2026-08-19 | verified by official contract only; installed CLI did not expose `mcp`/`extensions` subcommands, so local client smoke is unavailable |
+| Qoder | Merge a `mcpServers` entry into a Qoder settings file (user scope verified; project/local scopes documented by the client, not exercised); copy the Skill into the CLI user skills directory | Yes | Yes, local stdio | Yes | Client-controlled; the I3 `safe-alpha-v1` deny profile has no equivalent | Tools surface as `mcp__ai_disk_doctor__*`; the Skill is indexed from `SKILL.md` frontmatter | Qoder CN build, Windows x64, 2026-09-26, client version not captured | verified locally: vendor-client registration connected and exposed all six tools, plus a raw stdio probe of the full tool surface and a fail-closed Core-path check; no natural-language golden-path scoring; see [`adapters/qoder/README.md`](../adapters/qoder/README.md) |
 | CodeBuddy | Deferred pending an official, locally verified configuration contract | unavailable | unavailable | unavailable | Product-controlled | Product-specific | CLI unavailable locally, 2026-08-19 | unavailable; status-only adapter; no invented manifest |
 | WorkBuddy | Deferred pending an official, locally verified configuration contract | unavailable | unavailable | unavailable | Product-controlled | Product-specific | CLI unavailable locally, 2026-08-19 | unavailable; status-only adapter; no invented manifest |
 | TRAE | Deferred pending a locally verified project configuration contract | Official Skills docs exist | Official MCP docs exist | not tested | Product-controlled | Product-specific | CLI unavailable locally, 2026-08-19 | verified by official contract only; no local client smoke; no invented manifest |
@@ -28,6 +32,11 @@ Sources are linked to official vendor documentation. Availability is based on th
 - [Qwen Code extension development](https://qwenlm.github.io/qwen-code-docs/en/developers/extensions/getting-started-extensions/)
 - [TRAE MCP documentation](https://docs.trae.ai/ide/model-context-protocol)
 - [TRAE Skills documentation](https://docs.trae.ai/ide/skills)
+
+Qoder is the one row above with no vendor documentation behind it: its
+configuration surface, Skill discovery behavior, and tool naming came only from
+local registration and a local stdio probe on 2026-09-26, so re-audit it before
+treating it as vendor-documented.
 
 The detailed I1.4 validation matrix is in [`docs/compatibility/i1-agent-validation.md`](compatibility/i1-agent-validation.md). It distinguishes shared MCP protocol validation from vendor-client registration validation and does not invent manifests for unavailable clients.
 

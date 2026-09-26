@@ -83,6 +83,28 @@ Set `cwd` to the user workspace where Core snapshots should be stored, rather th
 
 OpenCode Agent Skills are discovered from `.opencode/skills`, `.claude/skills`, or `.agents/skills`. Copy or symlink `skills/ai-disk-doctor` into one of those locations for a project or user installation.
 
+### Qoder
+
+Qoder reads a `mcpServers` map from a settings file in one of three scopes: user (`~/.qoder-cn/settings.json`), project (`<repo>/.qoder/settings.json`, committed), or local (`<repo>/.qoder/settings.local.json`, gitignored). Only the user scope was exercised locally. Merge the entry below, or the copy in `adapters/qoder/settings.example.json`, into the existing `mcpServers` map instead of replacing the file. `~/.qoder-cn/mcp.json` and a repository `.mcp.json` are not documented Qoder MCP targets.
+
+```json
+{
+  "mcpServers": {
+    "ai-disk-doctor": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["C:/absolute/path/to/ai-disk-doctor-integrations/src/server.js"],
+      "cwd": "C:/absolute/path/to/your-workspace",
+      "env": { "AIDISK_EXE": "aidisk" }
+    }
+  }
+}
+```
+
+Set `cwd` to the user workspace so Core snapshots stay workspace-local, and point `AIDISK_EXE` at a stable Core rather than a `target/` build directory. Install the Skill by copying `skills/ai-disk-doctor`, including its `references/` folder, into the CLI user skills directory (`~/.qoder-cn/skills/ai-disk-doctor/` on the CN build).
+
+Registration, the six-tool surface, and a fail-closed Core-path check were verified locally on 2026-09-26; see [`adapters/qoder/README.md`](adapters/qoder/README.md). The `scripts/i3.mjs` self-service commands are Claude Code only: they do not register, verify, or launch Qoder, and Qoder has no equivalent of the `safe-alpha-v1` denied-tool launch profile.
+
 ### Qwen Code
 
 Qwen Code supports local stdio MCP servers and extensions in current official documentation. Equivalent `.qwen/settings.json` entry:
